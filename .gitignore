@@ -1,0 +1,13 @@
+/data/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.next/
+web/out/
+.env
+*.wav
+!fixtures/**/*.wav
+.pytest_cache/
+dist/
+panchovoice.yaml

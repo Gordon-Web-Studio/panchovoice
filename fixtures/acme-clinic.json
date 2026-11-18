@@ -1,0 +1,33 @@
+{
+  "id": "acme-clinic",
+  "description": "ACME clinic (fictional) with open slots, three customers and no appointments yet",
+  "tools": [
+    {"name": "find_slot", "description": "Check if a slot is free on a day and time", "params": {"day": "string", "time": "string"},
+     "action": "find", "collection": "slots", "match": ["day", "time"], "returns": "first_or_error"},
+    {"name": "list_slots", "description": "List the free slots of a day", "params": {"day": "string"},
+     "action": "find", "collection": "slots", "match": ["day"], "returns": "all"},
+    {"name": "book_appointment", "description": "Book a slot for a customer", "params": {"name": "string", "day": "string", "time": "string"},
+     "action": "insert", "collection": "appointments", "requires": {"collection": "slots", "match": ["day", "time"]}},
+    {"name": "check_balance", "description": "Get a customer balance", "params": {"name": "string"},
+     "action": "find", "collection": "customers", "match": ["name"], "returns": "first_or_error", "fields": ["name", "balance"]},
+    {"name": "cancel_appointment", "description": "Cancel an appointment", "params": {"name": "string", "day": "string"},
+     "action": "delete", "collection": "appointments", "match": ["name", "day"]}
+  ],
+  "state": {
+    "slots": [
+      {"day": "monday", "time": "14:00"},
+      {"day": "tuesday", "time": "10:00"},
+      {"day": "tuesday", "time": "11:00"},
+      {"day": "tuesday", "time": "15:30"},
+      {"day": "wednesday", "time": "09:00"},
+      {"day": "thursday", "time": "16:00"}
+    ],
+    "customers": [
+      {"name": "Sam Rivera", "phone": "555-0142", "balance": 120.5},
+      {"name": "Jordan Lee", "phone": "555-0199", "balance": 0},
+      {"name": "Taylor Brooks", "phone": "555-0173", "balance": 45},
+      {"name": "Lucia Moreno", "phone": "555-0128", "balance": 80}
+    ],
+    "appointments": []
+  }
+}

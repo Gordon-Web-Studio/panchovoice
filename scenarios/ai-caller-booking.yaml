@@ -1,0 +1,27 @@
+id: ai-caller-booking
+title: AI caller books an appointment in a free conversation
+agent: acme-demo
+language: en
+risk: normal
+tags: [booking, ai-caller]
+fixture: acme-clinic.json
+caller:
+  mode: ai
+  voice: af_heart
+  persona: "Sam Rivera, a busy customer of ACME clinic. Short answers. Gets impatient with long replies."
+  goal: "Book an appointment for Tuesday at 3:30 PM, confirm it if asked, then say goodbye."
+  facts: { name: "Sam Rivera", phone: "555-0142", wanted_day: "Tuesday", wanted_time: "3:30 PM" }
+  opening_line: "Hi, I need an appointment."
+  traits: { interrupts: false, patience_s: 6 }
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Sam Rivera", day: tuesday, time: "15:30" }
+  forbidden_tools: [cancel_appointment]
+  final_state:
+    appointments:
+      - { name: "Sam Rivera", day: tuesday, time: "15:30" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  judge:
+    - "The appointment was booked for Tuesday at 3:30 PM for Sam Rivera."
+limits: { max_turns: 8, max_seconds: 150, silence_timeout_s: 15 }

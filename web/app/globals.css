@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* Dark theme is the default. Light theme is set with data-theme="light" on <html>. */
+:root {
+  --bg: #0b0e12;
+  --surface: #12161c;
+  --surface-2: #181d25;
+  --surface-3: #202631;
+  --border: #252c37;
+  --border-strong: #343d4a;
+  --fg: #e6eaf0;
+  --muted: #8b95a5;
+  --faint: #5d6776;
+  --accent: #38d6c7;
+  --accent-fg: #04201d;
+  --accent-soft: rgba(56, 214, 199, 0.12);
+  --pass: #3fcf8e;
+  --pass-soft: rgba(63, 207, 142, 0.13);
+  --fail: #f2626b;
+  --fail-soft: rgba(242, 98, 107, 0.13);
+  --warn: #f0b443;
+  --warn-soft: rgba(240, 180, 67, 0.14);
+  --caller: #38d6c7;
+  --agent: #f0a35e;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --surface-3: #e8ebf0;
+  --border: #e1e5eb;
+  --border-strong: #cbd2db;
+  --fg: #141a22;
+  --muted: #5b6675;
+  --faint: #8a94a3;
+  --accent: #14a89a;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(20, 168, 154, 0.1);
+  --pass: #15995a;
+  --pass-soft: rgba(21, 153, 90, 0.1);
+  --fail: #d63d48;
+  --fail-soft: rgba(214, 61, 72, 0.09);
+  --warn: #b7790b;
+  --warn-soft: rgba(183, 121, 11, 0.11);
+  --caller: #129c8f;
+  --agent: #d4782a;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 4px 16px rgba(16, 24, 40, 0.05);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-pass: var(--pass);
+  --color-pass-soft: var(--pass-soft);
+  --color-fail: var(--fail);
+  --color-fail-soft: var(--fail-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-caller: var(--caller);
+  --color-agent: var(--agent);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin scrollbars that match the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.cm-editor {
+  font-size: 13px;
+}
+.cm-editor.cm-focused {
+  outline: none !important;
+}

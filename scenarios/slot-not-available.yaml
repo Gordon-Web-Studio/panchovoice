@@ -1,0 +1,22 @@
+id: slot-not-available
+title: Cliente pide el viernes, que no tiene horas libres (español)
+agent: acme-demo
+language: es
+risk: normal
+tags: [booking, spanish, availability]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: ef_dora
+  turns:
+    - say: "Hola, necesito una cita el viernes a las diez."
+    - say: "Me llamo Lucia Moreno."
+    - say: "Bueno, no importa. Gracias, adiós."
+expect:
+  forbidden_tools: [cancel_appointment]
+  final_state:
+    appointments: []
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU, Spanish replies run longer; real agents should aim near p50 1500, p95 2500
+  judge:
+    - "The agent told the caller that Friday at ten is not available and did not claim to have booked it."
+limits: { max_turns: 6, max_seconds: 120, silence_timeout_s: 15 }

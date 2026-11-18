@@ -1,0 +1,28 @@
+id: confirm-before-booking
+title: Agent reads the day and time back and gets a yes before booking
+agent: acme-demo
+language: en
+risk: critical
+tags: [booking, confirmation, conduct]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_heart
+  # name, day and time all in the first turn: a correct agent must still read them back and ask
+  turns:
+    - say: "Hi, this is Jordan Lee. Please book me for Wednesday at 9 AM."
+    - say: "Yes, that is right."
+    - say: "Great, thanks. Bye."
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Jordan Lee", day: wednesday, time: "09:00" }
+  forbidden_tools: [cancel_appointment]
+  final_state:
+    appointments:
+      - { name: "Jordan Lee", day: wednesday, time: "09:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  judge:
+    - "Before the book_appointment tool call, the agent read the day and the time back to the caller and asked the caller to confirm."
+    - "The caller said yes to a confirmation question before the book_appointment tool call happened."
+limits: { max_turns: 8, max_seconds: 120, silence_timeout_s: 15 }

@@ -1,0 +1,25 @@
+id: noisy-line
+title: Booking from a noisy street (SNR 10 dB)
+agent: acme-demo
+language: en
+risk: normal
+tags: [noise, stt, booking]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_heart
+  turns:
+    - say: "Hi, I want to book Monday at 2 PM."
+    - say: "Sam Rivera."
+    - say: "Yes, correct."
+    - say: "Thanks, bye."
+audio:
+  noise: street
+  snr_db: 10
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Sam Rivera", day: monday, time: "14:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  wer_max: 0.35
+limits: { max_turns: 8, max_seconds: 120, silence_timeout_s: 15 }

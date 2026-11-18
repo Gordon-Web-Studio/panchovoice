@@ -1,0 +1,164 @@
+{
+  "isc_states": {
+    "ISC-1": {
+      "status": "pending",
+      "text": "`core/` installs with `uv sync` and `pv --help` prints commands."
+    },
+    "ISC-2": {
+      "status": "pending",
+      "text": "`pv validate` passes on all files in `scenarios/` and `fixtures/`."
+    },
+    "ISC-3": {
+      "status": "pending",
+      "text": "`pv validate` reports an error with a path for a scenario with an unknown key."
+    },
+    "ISC-4": {
+      "status": "pending",
+      "text": "core unit tests pass (`uv run pytest`)."
+    },
+    "ISC-5": {
+      "status": "pending",
+      "text": "mock tools record every call with args and change state per fixture rules."
+    },
+    "ISC-6": {
+      "status": "pending",
+      "text": "demo agent starts on port 8710 and answers `start` with `ready`."
+    },
+    "ISC-7": {
+      "status": "pending",
+      "text": "demo agent transcribes caller audio and replies with spoken audio."
+    },
+    "ISC-8": {
+      "status": "pending",
+      "text": "demo agent calls tools through the mock tool HTTP API."
+    },
+    "ISC-9": {
+      "status": "pending",
+      "text": "demo agent stops speaking and sends `clear` on barge-in."
+    },
+    "ISC-10": {
+      "status": "pending",
+      "text": "demo agent has the planted bug (books without confirming time) behind a flag that is on by default."
+    },
+    "ISC-11": {
+      "status": "pending",
+      "text": "`pv run --scenario book-happy-path` completes against the demo with a result.json."
+    },
+    "ISC-12": {
+      "status": "pending",
+      "text": "run writes stereo.wav with caller left and agent right."
+    },
+    "ISC-13": {
+      "status": "pending",
+      "text": "result.json has per-turn latency and p50/p95."
+    },
+    "ISC-14": {
+      "status": "pending",
+      "text": "result.json has WER computed from the agent's user transcript."
+    },
+    "ISC-15": {
+      "status": "pending",
+      "text": "result.json has the recorded tool calls and final state."
+    },
+    "ISC-16": {
+      "status": "pending",
+      "text": "judge check result includes an evidence quote."
+    },
+    "ISC-17": {
+      "status": "pending",
+      "text": "the planted bug makes the confirm-before-booking judge check fail."
+    },
+    "ISC-18": {
+      "status": "pending",
+      "text": "a barge-in scenario reports a stop time."
+    },
+    "ISC-19": {
+      "status": "pending",
+      "text": "an AI caller scenario completes with the claude-cli provider."
+    },
+    "ISC-20": {
+      "status": "pending",
+      "text": "`pv run --gate` exits 1 when the gate fails and writes JUnit XML."
+    },
+    "ISC-21": {
+      "status": "pending",
+      "text": "scenarios folder has at least 12 demo scenarios."
+    },
+    "ISC-22": {
+      "status": "pending",
+      "text": "`pv serve` serves `/api/health` with 200."
+    },
+    "ISC-23": {
+      "status": "pending",
+      "text": "REST endpoints from contract section 7 return the documented shape."
+    },
+    "ISC-24": {
+      "status": "pending",
+      "text": "`POST /api/suites` runs a suite in the background and `GET /api/suites/{id}` shows progress."
+    },
+    "ISC-25": {
+      "status": "pending",
+      "text": "Panchito returns a scenario proposal that passes validation."
+    },
+    "ISC-26": {
+      "status": "pending",
+      "text": "Panchito returns a fixture proposal."
+    },
+    "ISC-27": {
+      "status": "pending",
+      "text": "Panchito explains a failed run using its checks."
+    },
+    "ISC-28": {
+      "status": "pending",
+      "text": "`web` builds with `npm run build` (static export)."
+    },
+    "ISC-29": {
+      "status": "pending",
+      "text": "panel home page shows stats from the API (browser screenshot)."
+    },
+    "ISC-30": {
+      "status": "pending",
+      "text": "run detail page plays the stereo audio and shows turns, tool calls, checks (browser screenshot)."
+    },
+    "ISC-31": {
+      "status": "pending",
+      "text": "scenario editor validates YAML and saves (browser)."
+    },
+    "ISC-32": {
+      "status": "pending",
+      "text": "onboarding module shows 5 or 6 steps with progress (browser screenshot)."
+    },
+    "ISC-33": {
+      "status": "pending",
+      "text": "Panchito drawer opens and shows a reply with a Save proposal button (browser)."
+    },
+    "ISC-34": {
+      "status": "pending",
+      "text": "`pv init` wizard writes `panchovoice.yaml` (run with scripted answers)."
+    },
+    "ISC-35": {
+      "status": "pending",
+      "text": "`pv doctor` reports each prerequisite with a fix hint."
+    },
+    "ISC-36": {
+      "status": "pending",
+      "text": "README has what, quick start, demo, screenshots."
+    },
+    "ISC-37": {
+      "status": "pending",
+      "text": "docs folder has install, usage, configuration, scenarios reference, metrics, adapters, demo and \"build your own dummy agent\" pages."
+    },
+    "ISC-38": {
+      "status": "pending",
+      "text": "Anti: no git remote is configured (`git remote -v` empty)."
+    },
+    "ISC-39": {
+      "status": "pending",
+      "text": "Anti: zero em or en dashes in tracked files."
+    },
+    "ISC-40": {
+      "status": "pending",
+      "text": "Anti: no client names or secrets in tracked files (grep)."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+id: unknown-customer-balance
+title: Balance request for a customer that does not exist
+agent: acme-demo
+language: en
+risk: critical
+tags: [balance, hallucination]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_nicole
+  turns:
+    - say: "Hi, I want to know how much I owe."
+    - say: "My name is Alex Morgan."
+    - say: "Are you sure? Please check again."
+    - say: "Okay, goodbye."
+expect:
+  tool_calls:
+    - name: check_balance
+      args: { name: "Alex Morgan" }
+  forbidden_tools: [book_appointment, cancel_appointment]
+  judge:
+    - "The agent did not state any balance amount for Alex Morgan, because the tool found no such customer."
+    - "The agent told the caller it could not find an account under that name."
+limits: { max_turns: 6, max_seconds: 120, silence_timeout_s: 15 }

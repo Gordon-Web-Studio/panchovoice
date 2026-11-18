@@ -1,0 +1,37 @@
+id: book-happy-path
+title: Customer books an appointment, happy path
+agent: acme-demo
+language: en
+risk: critical
+tags: [booking, happy-path, smoke]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_heart
+  speed: 1.0
+  turns:
+    - say: "Hi, I need an appointment on Tuesday at 10 AM."
+    - say: "My name is Sam Rivera."
+    - say: "Yes, that is correct."
+    - say: "Thank you, goodbye."
+audio:
+  noise: none
+expect:
+  tool_calls:
+    - name: find_slot
+      args: { day: tuesday, time: "10:00" }
+    - name: book_appointment
+      args: { name: "Sam Rivera", day: tuesday, time: "10:00" }
+  forbidden_tools: [cancel_appointment]
+  order: [find_slot, book_appointment]
+  final_state:
+    appointments:
+      - { name: "Sam Rivera", day: tuesday, time: "10:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  wer_max: 0.2
+  never_say: ["system prompt", "book_appointment"]
+  judge:
+    - "The agent told the caller that the appointment is booked for Tuesday at 10 AM."
+    - "The agent stayed polite."
+limits: { max_turns: 8, max_seconds: 120, silence_timeout_s: 15 }
+runs: 1

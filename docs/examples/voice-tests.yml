@@ -1,0 +1,132 @@
+# EXAMPLE workflow: voice tests with PanchoVoiceAI.
+#
+# This is an example, not a finished product. It was written from the docs and
+# has not been proven on a GitHub runner yet. A ready-made reusable GitHub
+# Action is on the roadmap.
+#
+# What it does:
+#   1. Starts Kokoro (the caller voice) as a service container.
+#   2. Installs uv and Ollama, and pulls a small local model.
+#   3. Starts the agent under test. Here it is the ACME demo agent.
+#      REPLACE that step with the start command of your own agent.
+#   4. Runs the suite with the gate. Exit code 1 blocks the job.
+#   5. Uploads the JUnit file and the run folders (recordings, results).
+#
+# Triggers:
+#   - By hand (workflow_dispatch).
+#   - Nightly, only when the repository variable PV_NIGHTLY is set to "true".
+#     Audio tests are slow. Do not run them on every push.
+#
+# Brain in CI: the default provider `claude-cli` needs a signed-in Claude Code,
+# which a runner does not have. This example uses `ollama` (local, no secrets).
+# To use the Anthropic API instead, set `provider: anthropic` in the config
+# below and add the secret ANTHROPIC_API_KEY to the `Run the suite` step.
+
+name: Voice tests (example)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"   # every night at 03:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  voice-tests:
+    if: github.event_name == 'workflow_dispatch' || vars.PV_NIGHTLY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      kokoro:
+        image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+        ports:
+          - 8880:8880
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ollama and pull the model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:11434/api/tags > /dev/null && break
+            sleep 2
+          done
+          ollama pull qwen2.5:7b
+
+      - name: Write the CI config
+        run: |
+          cat > panchovoice.ci.yaml <<'EOF'
+          version: 1
+          data_dir: ./data
+          scenarios_dir: ./scenarios
+          fixtures_dir: ./fixtures
+          llm:
+            provider: ollama
+            model: qwen2.5:7b
+            max_calls_per_run: 60
+          tts:
+            provider: kokoro
+            url: http://127.0.0.1:8880
+          stt:
+            provider: faster-whisper
+            model: base
+          agents:
+            - id: acme-demo
+              name: ACME Appointments (demo)
+              adapter: websocket
+              url: ws://127.0.0.1:8710/ws
+              language: en
+          gate:
+            pass_rate: 0.95
+            critical_must_pass_all: true
+          EOF
+
+      # REPLACE this step with the start command of your own agent.
+      - name: Start the agent under test (demo agent, bug off)
+        working-directory: demo/acme-agent
+        run: |
+          nohup uv run acme-agent --no-bug --stt-model base > "$RUNNER_TEMP/agent.log" 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8710/health > /dev/null && exit 0
+            sleep 2
+          done
+          echo "The agent did not start. Log:"
+          cat "$RUNNER_TEMP/agent.log"
+          exit 1
+
+      - name: Install the core
+        working-directory: core
+        run: uv sync
+
+      - name: Validate scenarios and fixtures
+        working-directory: core
+        run: uv run pv --config ../panchovoice.ci.yaml validate
+
+      - name: Run the suite with the gate
+        working-directory: core
+        # env:
+        #   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # only for provider: anthropic
+        run: >
+          uv run pv --config ../panchovoice.ci.yaml run
+          --tag smoke
+          --gate
+          --junit ../out/junit.xml
+          --json ../out/suite.json
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-test-results
+          path: |
+            out/
+            data/runs/
+          if-no-files-found: ignore

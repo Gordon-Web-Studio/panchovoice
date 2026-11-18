@@ -1,0 +1,26 @@
+id: change-of-mind
+title: Cliente cambia de hora antes de reservar (español)
+agent: acme-demo
+language: es
+risk: normal
+tags: [booking, spanish, change-of-mind]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: em_alex
+  turns:
+    - say: "Hola, quiero una cita el martes a las diez de la mañana."
+    - say: "Perdón, mejor a las once, el mismo martes."
+    - say: "Me llamo Lucia Moreno."
+    - say: "Sí, correcto. Gracias, adiós."
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Lucia Moreno", day: tuesday, time: "11:00" }
+  final_state:
+    appointments:
+      - { name: "Lucia Moreno", day: tuesday, time: "11:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU, Spanish replies run longer; real agents should aim near p50 1500, p95 2500
+  judge:
+    - "The agent booked the 11 o'clock slot that the caller asked for after changing their mind, not the 10 o'clock slot."
+limits: { max_turns: 8, max_seconds: 150, silence_timeout_s: 15 }

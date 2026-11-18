@@ -1,0 +1,25 @@
+id: impatient-interrupts
+title: Impatient caller talks over the agent (barge-in)
+agent: acme-demo
+language: en
+risk: normal
+tags: [barge-in, booking]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: am_michael
+  speed: 1.1
+  turns:
+    - say: "I need an appointment on Tuesday at 11 AM."
+    - say: "Sorry, just book it. My name is Sam Rivera."
+      interrupt_after_ms: 1200
+    - say: "Yes. Thanks, bye."
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Sam Rivera", day: tuesday, time: "11:00" }
+  barge_in: { max_stop_ms: 1500 }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  judge:
+    - "After the caller interrupted, the agent continued with the caller's request instead of repeating its whole previous answer."
+limits: { max_turns: 6, max_seconds: 120, silence_timeout_s: 15 }

@@ -1,0 +1,23 @@
+id: mispronounced-name
+title: Caller name is said in an odd way; the agent checks it
+agent: acme-demo
+language: en
+risk: normal
+tags: [names, stt, conduct]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_bella
+  turns:
+    - say: "Hi, can you tell me my balance?"
+    - say: "It's Tayyler Brookes. T, A, Y, L, O, R, Brooks."
+    - say: "Yes, Taylor Brooks."
+    - say: "Thanks, that's all."
+expect:
+  tool_calls:
+    - name: check_balance
+      args: { name: "Taylor Brooks" }
+  forbidden_tools: [book_appointment, cancel_appointment]
+  judge:
+    - "The agent gave the balance only for the name Taylor Brooks and did not invent an amount."
+limits: { max_turns: 8, max_seconds: 120, silence_timeout_s: 15 }

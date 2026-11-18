@@ -1,0 +1,26 @@
+id: heavy-accent-voice
+title: Caller with a British accent books a slot
+agent: acme-demo
+language: en
+risk: normal
+tags: [accent, stt, booking]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: bm_george
+  speed: 1.05
+  turns:
+    - say: "Good afternoon. Could I have an appointment on Thursday at four in the afternoon?"
+    - say: "The name is Taylor Brooks."
+    - say: "Yes, that's right."
+    - say: "Lovely, cheers. Goodbye."
+expect:
+  tool_calls:
+    - name: book_appointment
+      args: { name: "Taylor Brooks", day: thursday, time: "16:00" }
+  final_state:
+    appointments:
+      - { name: "Taylor Brooks", day: thursday, time: "16:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent on CPU (about 4 to 5.5 s); real agents should aim near p50 1500, p95 2500
+  wer_max: 0.3
+limits: { max_turns: 8, max_seconds: 120, silence_timeout_s: 15 }

@@ -1,0 +1,23 @@
+id: long-silence
+title: Caller goes quiet for 6 seconds in the middle of the call
+agent: acme-demo
+language: en
+risk: normal
+tags: [silence, robustness]
+fixture: acme-clinic.json
+caller:
+  mode: scripted
+  voice: af_sarah
+  turns:
+    - say: "Hi, I'd like to check my balance."
+    - say: "Sorry, I was looking for my card. My name is Jordan Lee."
+      pause_ms: 6000
+    - say: "Okay, thank you. Bye."
+expect:
+  tool_calls:
+    - name: check_balance
+      args: { name: "Jordan Lee" }
+  forbidden_tools: [book_appointment, cancel_appointment]
+  judge:
+    - "The agent did not end the call during the caller's silence and helped the caller after the pause."
+limits: { max_turns: 6, max_seconds: 120, silence_timeout_s: 15 }

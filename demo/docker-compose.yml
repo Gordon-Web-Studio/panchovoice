@@ -1,0 +1,45 @@
+# ACME Appointments demo stack: TTS, LLM, and the demo voice agent.
+#
+#   docker compose -f demo/docker-compose.yml up -d
+#   docker compose -f demo/docker-compose.yml exec ollama ollama pull qwen2.5:7b   # once
+#
+# The agent then listens on ws://localhost:8710/ws (pv-ws/1).
+# Set ACME_BUG=0 to turn off the planted bug.
+
+services:
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    ports:
+      - "8880:8880"
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  acme-agent:
+    build:
+      context: ./acme-agent
+    ports:
+      - "8710:8710"
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      KOKORO_URL: http://kokoro:8880
+      ACME_MODEL: qwen2.5:7b
+      ACME_STT_MODEL: base
+      ACME_VOICE: af_heart
+      ACME_BUG: "${ACME_BUG:-1}"
+    volumes:
+      - whisper-cache:/cache
+    depends_on:
+      - kokoro
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  whisper-cache:
