@@ -17,6 +17,7 @@ from typing import Any, Callable
 import yaml
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 from . import __version__, db, onboarding, panchito
 from .checks import gate
@@ -26,6 +27,15 @@ from .llm import LLMProvider
 from .mocktools import SessionRegistry, start_mock_server
 from .scenario import KEBAB, check_scenario_refs, list_scenario_files, validate_scenario_text
 from .server.suites import SuiteBusy, SuiteManager
+
+# MCP tool hints. They tell clients which tools only read, which write, and which reach outside this PC.
+READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
+# save_scenario can overwrite an existing scenario file (only with confirm=true).
+SAVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False)
+# run_suite calls the agent under test (can be remote) and may call an LLM; each call adds new runs.
+RUN = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True)
+# explain_run changes nothing, but it calls the project's LLM, so the reply can differ each time.
+LLM = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True)
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 RECENT_RUNNING_S = 600  # a suite file touched this recently by another process counts as running
@@ -164,7 +174,7 @@ def build_server(
 
     # ------------------------------------------------------------------ scenarios
 
-    @server.tool()
+    @server.tool(title="List scenarios", annotations=READ)
     def list_scenarios(tag: str | None = None) -> list[dict[str, Any]]:
         """List the test scenarios of this project (one YAML file each in scenarios_dir).
 
@@ -188,7 +198,7 @@ def build_server(
                         "valid": not validate_text(text, p.name)})
         return out
 
-    @server.tool()
+    @server.tool(title="Get scenario", annotations=READ)
     def get_scenario(id: str) -> dict[str, Any]:
         """Get one scenario: its full YAML text, file path, and validation errors (if any)."""
         p = scenario_file(safe_id(id, "scenario id"))
@@ -198,7 +208,7 @@ def build_server(
         errs = validate_text(text, p.name)
         return {"id": id, "yaml": text, "file": rel(p), "valid": not errs, "errors": _errors(errs)}
 
-    @server.tool()
+    @server.tool(title="Validate scenario", annotations=READ)
     def validate_scenario(yaml: str) -> dict[str, Any]:
         """Check scenario YAML text without saving it. Returns {ok, errors: [{path, message}]}.
 
@@ -207,7 +217,7 @@ def build_server(
         errs = validate_text(yaml, None)
         return {"ok": not errs, "errors": _errors(errs)}
 
-    @server.tool()
+    @server.tool(title="Save scenario", annotations=SAVE)
     def save_scenario(id: str, yaml: str, confirm: bool = False) -> dict[str, Any]:
         """Create or replace scenario `id` (file scenarios_dir/<id>.yaml). The id must be kebab-case and equal the
         `id:` key in the YAML.
@@ -244,7 +254,7 @@ def build_server(
 
     # ------------------------------------------------------------------ suites
 
-    @server.tool()
+    @server.tool(title="Run test suite", annotations=RUN)
     def run_suite(scenario_ids: list[str] | None = None, tags: list[str] | None = None,
                   runs: int | None = None) -> dict[str, Any]:
         """Start a suite in the background and return {suite_id} at once. Poll get_suite until status is not
@@ -278,7 +288,7 @@ def build_server(
             raise ToolError(f"suite {suite_id} not found")
         return s
 
-    @server.tool()
+    @server.tool(title="Get suite progress", annotations=READ)
     def get_suite(suite_id: str) -> dict[str, Any]:
         """Get a suite: status (running, finished, error, interrupted), progress (done of total), passed, failed,
         errors, pass_rate, gate_passed, gate_detail, and one row per run (status, latency p50 and p95 in ms,
@@ -294,7 +304,7 @@ def build_server(
                        for r in (s.get("runs") or []) if r]
         return out
 
-    @server.tool()
+    @server.tool(title="CI gate status", annotations=READ)
     def gate_status(suite_id: str | None = None) -> dict[str, Any]:
         """The go or no go verdict of a suite (default: the newest suite): pass_rate, gate_passed and the reasons
         it failed. Errors (harness could not measure) are left out of the pass rate but fail the gate."""
@@ -326,7 +336,7 @@ def build_server(
 
     # ------------------------------------------------------------------ runs
 
-    @server.tool()
+    @server.tool(title="List runs", annotations=READ)
     def list_runs(limit: int = 20, scenario_id: str | None = None) -> list[dict[str, Any]]:
         """List recent runs, newest first: run_id, suite_id, scenario_id, status (passed, failed, error),
         started_at, duration_ms, latency_p50_ms, latency_p95_ms, wer. `limit` is 1 to 200."""
@@ -335,14 +345,14 @@ def build_server(
             r.pop("path", None)
         return rows
 
-    @server.tool()
+    @server.tool(title="Get run", annotations=READ)
     def get_run(run_id: str) -> dict[str, Any]:
         """One run result in compact form: status, harness error, metrics (latency p50 and p95 in ms, wer,
         barge-in stop time), check counts, failed checks with their evidence, turns (what the caller said, what
         the agent heard and said, latency), mock tool calls and the final mock state."""
         return compact_run(read_run(run_id))
 
-    @server.tool()
+    @server.tool(title="Explain run with Panchito", annotations=LLM)
     def explain_run(run_id: str, question: str | None = None) -> dict[str, Any]:
         """Ask Panchito (the PanchoVoiceAI helper, uses the project's LLM) to explain a run: why it failed and one
         concrete fix. Pass `question` to ask something else about the run. Can take up to 2 minutes.

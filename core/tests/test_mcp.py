@@ -108,6 +108,21 @@ def test_tool_list_has_descriptions_and_schemas(make_server):
     assert set(tools["get_run"].input_schema["required"]) == {"run_id"}
 
 
+def test_every_tool_has_all_four_hints_and_a_title(make_server):
+    server, _ = make_server()
+    tools = {t.name: t for t in list_tools(server)}
+    for t in tools.values():
+        a = t.annotations
+        assert a is not None and t.title, t.name
+        for hint in ("read_only_hint", "destructive_hint", "idempotent_hint", "open_world_hint"):
+            assert getattr(a, hint) is not None, (t.name, hint)
+    read_only = {n for n, t in tools.items() if t.annotations.read_only_hint}
+    assert read_only == set(TOOL_NAMES) - {"save_scenario", "run_suite"}
+    assert tools["save_scenario"].annotations.destructive_hint is True
+    assert tools["run_suite"].annotations.open_world_hint is True
+    assert tools["explain_run"].annotations.open_world_hint is True
+
+
 def test_list_get_validate_scenarios(make_server):
     server, _ = make_server()
     err, rows = call(server, "list_scenarios")

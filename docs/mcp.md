@@ -86,6 +86,17 @@ Suite `status` is `running`, `finished`, `error` (the suite crashed) or `interru
 
 `explain_run` uses the LLM of your `panchovoice.yaml` (the `llm` key), the same brain as [Panchito](panchito.md) in the panel. It can take up to 2 minutes.
 
+## Tool hints
+
+Every tool sends the four standard MCP hints, so a client knows what each tool does before it calls it.
+
+| Tool | Read only | Destructive | Idempotent | Open world |
+|---|---|---|---|---|
+| `list_scenarios`, `get_scenario`, `validate_scenario`, `get_suite`, `gate_status`, `list_runs`, `get_run` | yes | no | yes | no |
+| `save_scenario` | no | yes (can overwrite a scenario file, only with `confirm: true`) | yes | no |
+| `run_suite` | no | no (it adds new runs) | no | yes (it calls the agent under test and can call an LLM) |
+| `explain_run` | yes | no | no (the LLM reply can differ) | yes (it calls the LLM) |
+
 ## The confirm rule
 
 The MCP server never writes a file, except through `save_scenario` with `confirm=true`.
