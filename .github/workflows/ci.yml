@@ -33,7 +33,7 @@ jobs:
           cache-dependency-glob: core/uv.lock
       - run: uv sync --locked
       - run: uv run pytest
-      - run: uv run pv --config .. validate
+      - run: uv run pv validate ../scenarios ../fixtures
 
   demo:
     name: demo agent tests

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from panchovoice import panchito
 from panchovoice.audio.tts import ToneTTS
 from panchovoice.llm import FakeProvider
-from panchovoice.mocktools import SessionRegistry, start_mock_server
+from panchovoice.mocktools import SessionRegistry, _free_port, start_mock_server
 from panchovoice.server import create_app
 
 FAST = {"end_of_turn_ms": 500, "first_turn_wait_ms": 700, "transcript_end_ms": 300}
@@ -33,7 +33,7 @@ limits: {max_turns: 2, max_seconds: 20, silence_timeout_s: 3}
 @pytest.fixture(scope="module")
 def mock():
     reg = SessionRegistry()
-    srv = start_mock_server(8796, reg)
+    srv = start_mock_server(_free_port(), reg)
     yield reg, srv.base_url
     srv.stop()
 
