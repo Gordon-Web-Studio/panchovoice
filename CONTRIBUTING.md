@@ -105,13 +105,45 @@ uv run pv run --scenario book-happy-path
 - Keep caller facts and fixture data in agreement.
 - Run `uv run pv validate` before you commit.
 
+## Branches and commits
+
+- `main` is protected. Nobody pushes to it directly, maintainers included. Every change arrives through a pull request.
+- Make a branch from `main` with a prefix that says what it is: `feat/...`, `fix/...`, `docs/...`, `chore/...`, `test/...`. Example: `feat/livekit-adapter`.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `feat: add LiveKit adapter`, `fix(metrics): count WER on the user transcript only`, `docs: explain the confirm rule`. A breaking change adds `!` after the type, for example `feat!: rename caller.turns`, and says what breaks in the body.
+- Pull requests are squash merged: the title of the pull request becomes the one commit on `main`, so it follows the same format.
+
 ## Pull requests
 
 1. Open an issue first for a large change, so we can agree on the direction.
 2. Keep a pull request to one purpose.
 3. Add or update tests. A bug fix comes with a test that fails without the fix.
-4. Update the docs when behavior changes.
-5. Say in the description what you tested and how.
+4. Update the docs for every new or changed feature: the README and the matching page in `docs/`. A feature without docs is not done.
+5. Add a line to `CHANGELOG.md` under `## [Unreleased]` (sections `Added`, `Changed`, `Fixed`, `Removed`, `Security`).
+6. Say in the description what you tested and how.
+7. CI must be green before the merge. It runs the core tests on Linux and Windows, the demo agent tests, the panel build, the dash check and the version check.
+
+## Versions and releases
+
+PanchoVoiceAI uses [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+
+- A fix raises PATCH: `0.1.0` to `0.1.1`.
+- A new feature raises MINOR: `0.1.0` to `0.2.0`.
+- While the version starts with `0.`, a MINOR release can also change the scenario format, the API or the CLI. The changelog says so in a `Changed` line.
+
+The version lives in four files and they must match: `core/pyproject.toml`, `core/src/panchovoice/__init__.py`, `demo/acme-agent/pyproject.toml`, `web/package.json`. `python scripts/check_versions.py` checks them.
+
+Release steps (maintainers):
+
+1. Open a pull request `chore: release vX.Y.Z` that sets the version in the four files and moves the `[Unreleased]` notes in `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD`.
+2. Merge it when CI is green.
+3. Tag the merge commit on `main` and publish a GitHub release with the changelog notes:
+   ```
+   git checkout main && git pull
+   python scripts/check_versions.py X.Y.Z
+   git tag -a vX.Y.Z -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <notes>
+   ```
 
 ## Good first contributions
 
