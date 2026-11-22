@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from panchovoice.fixture import load_fixture
-from panchovoice.mocktools import (MockToolSession, SessionRegistry, make_mock_router, normalize_day, normalize_time,
+from panchovoice.mocktools import (MockToolSession, _free_port, SessionRegistry, make_mock_router, normalize_day, normalize_time,
                                    start_mock_server, subset_match)
 
 
@@ -121,7 +121,7 @@ def test_router_with_testclient(fixture_path: Path):
 
 def test_standalone_server_thread(fixture_path: Path):
     reg = SessionRegistry()
-    srv = start_mock_server(0 if False else 8799, reg)
+    srv = start_mock_server(_free_port(), reg)
     try:
         s = reg.create(load_fixture(fixture_path))
         r = httpx.post(f"{srv.base_url}/{s.session_id}/tools/check_balance", json={"name": "Jordan Lee"}, timeout=5)

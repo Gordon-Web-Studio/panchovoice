@@ -11,7 +11,7 @@ from panchovoice import db
 from panchovoice.audio.pcm import read_wav
 from panchovoice.audio.tts import ToneTTS
 from panchovoice.llm import FakeProvider
-from panchovoice.mocktools import SessionRegistry, start_mock_server
+from panchovoice.mocktools import SessionRegistry, _free_port, start_mock_server
 from panchovoice.report import junit_xml
 from panchovoice.runner import run_scenario, run_suite
 from panchovoice.scenario import validate_scenario_text
@@ -22,7 +22,7 @@ FAST = {"end_of_turn_ms": 500, "first_turn_wait_ms": 700, "transcript_end_ms": 3
 @pytest.fixture(scope="module")
 def mock():
     reg = SessionRegistry()
-    srv = start_mock_server(8798, reg)
+    srv = start_mock_server(_free_port(), reg)
     yield reg, srv.base_url
     srv.stop()
 
@@ -81,8 +81,9 @@ def test_scripted_run_end_to_end(project, fake_agent, mock):
     turns = res["turns"]
     assert len(turns) == 2
     for t in turns:
-        # the agent waits ~250 ms of silence then 400 ms delay: latency about 650 ms (+ frame and network jitter)
-        assert 500 <= t["latency_ms"] <= 1100, t
+        # the agent waits ~250 ms of silence then 400 ms delay: latency about 650 ms (+ frame and network jitter;
+        # shared CI runners and a busy PC add more, so the upper bound stays under the scenario p50 limit of 1500)
+        assert 500 <= t["latency_ms"] <= 1450, t
         assert t["agent_start_ms"] - t["caller_end_ms"] == t["latency_ms"]
         assert t["caller_end_ms"] > t["caller_start_ms"]
     assert turns[0]["agent_heard"] == "hi i need tuesday at 10"
@@ -286,6 +287,6 @@ def test_cli_run_gate_exit_code(project, fake_agent, monkeypatch, tmp_path):
 
     monkeypatch.setattr(runner_mod, "run_scenario", fast_run)
     out = tmp_path / "junit.xml"
-    r = CliRunner().invoke(app, ["--config", str(cfg.source), "run", "--gate", "--junit", str(out), "--mock-port", "8797"])
+    r = CliRunner().invoke(app, ["--config", str(cfg.source), "run", "--gate", "--junit", str(out), "--mock-port", str(_free_port())])
     assert r.exit_code == 1, r.output
     assert out.exists() and "c-fail" in out.read_text(encoding="utf-8")

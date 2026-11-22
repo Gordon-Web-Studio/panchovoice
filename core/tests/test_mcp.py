@@ -12,7 +12,7 @@ from mcp import Client
 from panchovoice.audio.tts import ToneTTS
 from panchovoice.llm import FakeProvider
 from panchovoice.mcp_server import TOOL_NAMES, build_server
-from panchovoice.mocktools import SessionRegistry, start_mock_server
+from panchovoice.mocktools import SessionRegistry, _free_port, start_mock_server
 
 FAST = {"end_of_turn_ms": 500, "first_turn_wait_ms": 700, "transcript_end_ms": 300}
 
@@ -45,7 +45,7 @@ RUN = {
 @pytest.fixture(scope="module")
 def mock():
     reg = SessionRegistry()
-    srv = start_mock_server(8797, reg)
+    srv = start_mock_server(_free_port(), reg)
     yield reg, srv.base_url
     srv.stop()
 

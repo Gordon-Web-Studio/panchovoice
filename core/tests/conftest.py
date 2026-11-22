@@ -9,6 +9,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Plain CLI output in tests. Typer forces color when GITHUB_ACTIONS or FORCE_COLOR is set, and the
+# escape codes then break text checks like "--config" in output. Set before typer is imported.
+os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"
+os.environ["NO_COLOR"] = "1"
+os.environ.pop("FORCE_COLOR", None)
+
 REPO = Path(__file__).resolve().parents[2]
 
 
