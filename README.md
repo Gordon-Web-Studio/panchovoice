@@ -150,7 +150,7 @@ PanchoVoiceAI is self-hosted, works with any platform through adapters, records 
 | [Install](docs/install.md) | Prerequisites per OS, Kokoro, Ollama, brain options, wizard, troubleshooting |
 | [Usage](docs/usage.md) | Run suites, flags, results, panel tour, JUnit, exit codes |
 | [Configuration](docs/configuration.md) | Every key of `panchovoice.yaml` |
-| [Scenarios and fixtures](docs/scenarios.md) | Full reference, the 14 demo scenarios, tips |
+| [Scenarios and fixtures](docs/scenarios.md) | Full reference, the 15 demo scenarios, tips |
 | [Metrics](docs/metrics.md) | How each number is measured and why |
 | [Adapters and pv-ws/1](docs/adapters.md) | Make your agent testable, platform roadmap |
 | [Demo agent](docs/demo.md) | ACME Appointments and the planted bug |

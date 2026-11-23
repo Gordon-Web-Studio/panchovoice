@@ -317,7 +317,7 @@ Agents say the same thing in many ways. The mock tools and the checks normalize 
 
 The rules for time and day apply only to params with exactly those names. Name your params `day` and `time` to get them.
 
-## The 14 demo scenarios
+## The 15 demo scenarios
 
 All use the fixture `acme-clinic.json` and the agent `acme-demo`.
 
@@ -325,6 +325,7 @@ All use the fixture `acme-clinic.json` and the agent `acme-demo`.
 |---|---|---|
 | `book-happy-path` | The full booking flow: `find_slot` then `book_appointment` with exact args, final state, WER, polite | critical |
 | `confirm-before-booking` | The agent reads the day and time back and gets a yes before it books. This is the check that the planted bug fails | critical |
+| `book-happy-path-ai` | The same booking as `book-happy-path`, with an AI caller that answers the agent (it repeats and spells its name if the agent asks again) | critical |
 | `ai-caller-booking` | An AI caller books in a free conversation | normal |
 | `impatient-interrupts` | Barge-in: the caller talks over the agent; stop time and context after the interruption | normal |
 | `heavy-accent-voice` | A British voice books a slot; WER with an accent | normal |

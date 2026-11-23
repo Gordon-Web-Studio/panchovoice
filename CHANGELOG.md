@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Demo scenario `book-happy-path-ai`: the happy path booking with an AI caller that reacts to the agent (it repeats and spells its name when asked), next to the scripted `book-happy-path`.
+
+### Changed
+
+- `book-happy-path` books for "James Hetfield" instead of "Sam Rivera". Deepgram Nova-3 heard "Rivera" as "Murdera" or "Samurdera" with the Aura voice in repeated runs, so the scripted caller, which cannot repeat or spell, failed for a speech to text reason instead of an agent bug.
+
 ## [0.1.0] - 2026-11-21
 
 First public release.

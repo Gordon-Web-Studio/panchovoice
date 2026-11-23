@@ -94,7 +94,7 @@ The bug lives only in the system prompt (`demo/acme-agent/src/acme_agent/prompts
 
 ## The demo suite
 
-The repo has 14 scenarios for this agent in `scenarios/`, all with the fixture `fixtures/acme-clinic.json`. The table is in [scenarios.md](scenarios.md#the-14-demo-scenarios).
+The repo has 15 scenarios for this agent in `scenarios/`, all with the fixture `fixtures/acme-clinic.json`. The table is in [scenarios.md](scenarios.md#the-15-demo-scenarios).
 
 ```bash
 uv run pv run                  # all 14

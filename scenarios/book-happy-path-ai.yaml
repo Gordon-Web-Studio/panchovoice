@@ -1,0 +1,36 @@
+id: book-happy-path-ai
+title: AI caller books an appointment, happy path (James Hetfield)
+agent: acme-demo
+language: en
+risk: critical
+tags: [booking, happy-path, ai-caller]
+fixture: acme-clinic.json
+caller:
+  mode: ai
+  voice: af_heart
+  persona: "James Hetfield, a friendly customer of ACME clinic. Short, clear answers. If the agent asks for your name again or gets it wrong, repeat it and spell the last name."
+  goal: "Book an appointment for Tuesday at 10 AM, confirm it if asked, then say goodbye."
+  facts: { name: "James Hetfield", last_name_spelled: "H-E-T-F-I-E-L-D", wanted_day: "Tuesday", wanted_time: "10 AM" }
+  opening_line: "Hi, I need an appointment on Tuesday at 10 AM."
+  traits: { interrupts: false, patience_s: 8 }
+audio:
+  noise: none
+expect:
+  tool_calls:
+    - name: find_slot
+      args: { day: tuesday, time: "10:00" }
+    - name: book_appointment
+      args: { name: "James Hetfield", day: tuesday, time: "10:00" }
+  forbidden_tools: [cancel_appointment]
+  order: [find_slot, book_appointment]
+  final_state:
+    appointments:
+      - { name: "James Hetfield", day: tuesday, time: "10:00" }
+  latency_ms: { p50: 6000, p95: 8000 }   # demo agent; real agents should aim near p50 1500, p95 2500
+  wer_max: 0.2
+  never_say: ["system prompt", "book_appointment"]
+  judge:
+    - "The agent told the caller that the appointment is booked for Tuesday at 10 AM."
+    - "The agent stayed polite."
+limits: { max_turns: 8, max_seconds: 150, silence_timeout_s: 15 }
+runs: 1
