@@ -140,6 +140,8 @@ def run(
 def demo(
     port: int = typer.Option(8710, "--port", help="Port for the demo agent."),
     stt_model: Optional[str] = typer.Option(None, "--stt-model", help="faster-whisper model of the demo agent (default base, about 2x faster than small; ACME_STT_MODEL is respected)."),
+    claude: bool = typer.Option(False, "--claude", help="The demo agent thinks with the Claude API (needs ANTHROPIC_API_KEY) instead of Ollama."),
+    deepgram: bool = typer.Option(False, "--deepgram", help="The demo agent hears and speaks with Deepgram (needs DEEPGRAM_API_KEY) instead of local Whisper and Kokoro."),
 ) -> None:
     """Start the ACME demo agent (demo/acme-agent) on port 8710."""
     cfg = _cfg()
@@ -154,7 +156,11 @@ def demo(
         raise typer.Exit(1)
     cmd = [uv, "run", "--project", str(proj), "acme-agent", "--port", str(port)]
     model = stt_model or (None if os.environ.get("ACME_STT_MODEL") else "base")
-    if model:
+    if claude:
+        cmd += ["--brain", "claude"]
+    if deepgram:
+        cmd += ["--stt", "deepgram", "--tts", "deepgram"]
+    elif model:
         cmd += ["--stt-model", model]
     console.print(f"starting demo agent: {' '.join(cmd)}")
     env = dict(os.environ)

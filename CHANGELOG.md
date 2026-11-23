@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Demo agent: `--brain claude` thinks with the Claude API (default `claude-haiku-5-5`, key from `ANTHROPIC_API_KEY`) instead of Ollama. The claim guard and the confirmation gate work the same.
+- Demo agent: `--stt deepgram` and `--tts deepgram` hear and speak with Deepgram (Nova-3, Aura-2; key from `DEEPGRAM_API_KEY`) instead of Whisper and Kokoro.
+- `pv demo --claude --deepgram` starts the demo agent with both, so it runs with no Docker. Keys are checked at startup.
+
 ## [0.1.0] - 2026-11-21
 
 First public release.

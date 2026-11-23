@@ -35,13 +35,16 @@ async def serve_forever(host: str, port: int, settings: Settings, transcriber: T
                 log.exception("[call %d] crashed", call.id)
 
         # Warm the LLM in the background so the first turn does not pay the model load.
-        from .brain import Brain
+        from .brain import BrainError
+        from .claude_brain import make_brain
 
         async def warm() -> None:
+            if settings.brain == "claude":
+                return  # checked at startup in cli.py; nothing to load
             try:
-                await Brain(http, settings.ollama_url, settings.model).warm_up()
+                await make_brain(http, settings).warm_up()
                 log.info("LLM %s is loaded", settings.model)
-            except httpx.HTTPError as e:
+            except (httpx.HTTPError, BrainError) as e:
                 log.warning("could not warm up Ollama at %s: %s", settings.ollama_url, e)
 
         warm_task = asyncio.create_task(warm())

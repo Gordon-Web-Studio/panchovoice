@@ -105,3 +105,36 @@ class Mouth:
         tail = r.flush()
         if tail:
             yield tail
+
+
+class DeepgramMouth:
+    """Streams 16 kHz PCM16 audio for a piece of text from Deepgram Aura (no resampling needed)."""
+
+    def __init__(self, client: httpx.AsyncClient, api_key: str, voice: str = "aura-2-thalia-en",
+                 url: str = "https://api.deepgram.com") -> None:
+        self.client = client
+        self.api_key = api_key
+        self.voice = voice
+        self.url = url.rstrip("/")
+
+    async def stream(self, text: str) -> AsyncIterator[bytes]:
+        params = {"model": self.voice, "encoding": "linear16", "sample_rate": "16000", "container": "none"}
+        headers = {"Authorization": f"Token {self.api_key}"}
+        carry = b""
+        async with self.client.stream("POST", f"{self.url}/v1/speak", params=params, json={"text": text},
+                                      headers=headers, timeout=60) as resp:
+            if resp.status_code >= 400:
+                await resp.aread()
+                resp.raise_for_status()  # httpx.HTTPStatusError: logged as a TTS error by the call
+            async for chunk in resp.aiter_bytes():
+                data = carry + chunk
+                n = len(data) // 2 * 2  # keep whole 16 bit samples
+                carry = data[n:]
+                if n:
+                    yield data[:n]
+
+
+def make_mouth(client: httpx.AsyncClient, settings) -> "Mouth | DeepgramMouth":
+    if settings.tts == "deepgram":
+        return DeepgramMouth(client, settings.deepgram_api_key, settings.deepgram_voice)
+    return Mouth(client, settings.kokoro_url, settings.voice)

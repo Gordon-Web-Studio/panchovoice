@@ -7,15 +7,16 @@ import contextlib
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 import numpy as np
 from websockets.exceptions import ConnectionClosed
 
-from .brain import Brain, Timing
+from .brain import BrainError, Timing
+from .claude_brain import DEFAULT_CLAUDE_MODEL, make_brain
 from .ears import Ears, Endpointer, Transcriber
-from .mouth import Mouth
+from .mouth import make_mouth
 from .prompts import greeting, system_prompt
 from .tools import MockTools
 
@@ -37,6 +38,11 @@ class Settings:
     language: str = "en"
     bug: bool = True
     end_silence_ms: int = 700
+    brain: str = "ollama"  # ollama | claude
+    claude_model: str = DEFAULT_CLAUDE_MODEL
+    tts: str = "kokoro"  # kokoro | deepgram
+    deepgram_voice: str = "aura-2-thalia-en"
+    deepgram_api_key: str = field(default="", repr=False)
 
 
 class Call:
@@ -48,8 +54,8 @@ class Call:
         self.id = call_id
         self.language = settings.language
         self.ears = Ears(Endpointer(end_silence_ms=settings.end_silence_ms))
-        self.brain = Brain(http, settings.ollama_url, settings.model, confirm_gate=not settings.bug)
-        self.mouth = Mouth(http, settings.kokoro_url, settings.voice)
+        self.brain = make_brain(http, settings)
+        self.mouth = make_mouth(http, settings)
         self.tools = MockTools(http, None)
         self.messages: list[dict] = []
         self.turn: asyncio.Task | None = None
@@ -202,7 +208,7 @@ class Call:
                     else:
                         self._log("turn %d tool %s %s -> %s", n, ev.name, json.dumps(ev.args), json.dumps(ev.result))
                         await self.send_json({"type": "tool_call", "name": ev.name, "args": ev.args})
-            except httpx.HTTPError as e:
+            except (httpx.HTTPError, BrainError) as e:
                 self._log("turn %d LLM error: %s", n, e)
                 await sentences.put("Sorry, I am having trouble right now. Please try again in a moment.")
             finally:

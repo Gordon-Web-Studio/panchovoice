@@ -54,10 +54,26 @@ With PanchoVoiceAI installed, `pv demo` starts the same agent.
 | `--language` | `ACME_LANGUAGE` | `en` | used when the `start` message has no language |
 | `--ollama-url` | `OLLAMA_URL` | `http://localhost:11434` | Ollama server |
 | `--kokoro-url` | `KOKORO_URL` | `http://localhost:8880` | Kokoro server |
+| `--brain` | `ACME_BRAIN` | `ollama` | LLM: `ollama` (local) or `claude` (Claude API, needs `ANTHROPIC_API_KEY`) |
+| `--claude-model` | `ACME_CLAUDE_MODEL` | `claude-haiku-5-5` | Claude model for `--brain claude` |
+| `--stt` | `ACME_STT` | `whisper` | speech to text: `whisper` (local) or `deepgram` (cloud) |
+| `--tts` | `ACME_TTS` | `kokoro` | text to speech: `kokoro` (local) or `deepgram` (cloud, Aura) |
+| `--deepgram-stt-model` | `ACME_DEEPGRAM_STT_MODEL` | `nova-3` | Deepgram speech to text model |
+| `--deepgram-voice` | `ACME_DEEPGRAM_VOICE` | `aura-2-thalia-en` | Deepgram Aura voice (for Spanish, for example `aura-2-celeste-es`) |
 | `--no-bug` | `ACME_BUG=0` | bug on | turn off the planted bug (see below) |
 
 The default is `base` because it keeps the demo near 2 seconds voice to voice on a CPU.
 `--stt-model small` is more accurate but about twice as slow end to end (see "Latency").
+
+With Deepgram (`--stt deepgram --tts deepgram`, or `pv demo --deepgram`) the agent needs no Kokoro
+and no Whisper model, only Ollama. The key comes from `DEEPGRAM_API_KEY` in your shell. The agent
+checks the key at startup and stops with a clear message when it is missing or rejected. Voice
+activity detection (Silero) stays local.
+
+With `--brain claude` (or `pv demo --claude`) the agent thinks with the Claude API instead of Ollama,
+so it needs no Docker at all when you also use Deepgram: `pv demo --claude --deepgram`. The claim
+guard and the confirmation gate work the same with both brains. Thinking is off and effort is low,
+for the fastest spoken reply.
 
 ## The planted bug
 

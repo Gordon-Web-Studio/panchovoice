@@ -13,6 +13,11 @@ import httpx
 from .tools import MockTools
 
 MAX_TOOL_ROUNDS = 4
+
+
+class BrainError(Exception):
+    """The LLM could not answer (bad key, network, rate limit). The call speaks an apology."""
+
 _NO_SPLIT = ("a.m.", "p.m.", "dr.", "mr.", "ms.", "mrs.", "st.", "e.g.", "i.e.")
 _BOUNDARY = re.compile(r"[.!?](?=\s)")
 

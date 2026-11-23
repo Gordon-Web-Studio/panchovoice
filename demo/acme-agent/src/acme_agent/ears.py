@@ -7,7 +7,10 @@ faster-whisper, so no torch is needed.
 from __future__ import annotations
 
 import collections
+import io
+import logging
 import threading
+import wave
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -164,3 +167,52 @@ class Transcriber:
                 without_timestamps=True,
             )
             return " ".join(s.text.strip() for s in segments).strip()
+
+
+DEEPGRAM_URL = "https://api.deepgram.com"
+
+
+class DeepgramTranscriber:
+    """Deepgram speech to text (pre-recorded endpoint), same interface as Transcriber.
+
+    The key comes from the caller (read from DEEPGRAM_API_KEY in cli.py), never from a file.
+    """
+
+    def __init__(self, api_key: str, model: str = "nova-3", url: str = DEEPGRAM_URL, timeout: float = 30.0,
+                 client=None) -> None:
+        import httpx
+
+        self.api_key = api_key
+        self.model = model
+        self.url = url.rstrip("/")
+        self.client = client or httpx.Client(timeout=timeout)
+        self.strict = True  # raise on errors (startup check); set False once the server runs
+
+    @staticmethod
+    def _wav(audio: np.ndarray) -> bytes:
+        pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes()
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(SAMPLE_RATE)
+            w.writeframes(pcm)
+        return buf.getvalue()
+
+    def transcribe(self, audio: np.ndarray, language: str = "en") -> str:
+        if len(audio) < SAMPLE_RATE // 10:  # under 100 ms: nothing to send
+            return ""
+        params = {"model": self.model, "language": language or "en", "punctuate": "true", "smart_format": "true"}
+        try:
+            r = self.client.post(f"{self.url}/v1/listen", params=params, content=self._wav(audio),
+                                 headers={"Authorization": f"Token {self.api_key}", "Content-Type": "audio/wav"})
+            if r.status_code in (401, 403):
+                raise RuntimeError("Deepgram rejected DEEPGRAM_API_KEY (HTTP %d)" % r.status_code)
+            r.raise_for_status()
+            alts = r.json()["results"]["channels"][0]["alternatives"]
+            return (alts[0].get("transcript") or "").strip() if alts else ""
+        except Exception as e:
+            if self.strict:
+                raise
+            logging.getLogger("acme_agent").warning("Deepgram STT error: %s", e)
+            return ""
