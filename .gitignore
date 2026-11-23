@@ -11,3 +11,4 @@ web/out/
 .pytest_cache/
 dist/
 panchovoice.yaml
+.DS_Store
