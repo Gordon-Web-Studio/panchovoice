@@ -15,11 +15,13 @@ from typing import Any, Callable
 import numpy as np
 
 from . import db
+from .adapters.elevenlabs import ElevenLabsCall
 from .adapters.http_turn import HttpCallRecording, HttpTurnCall
 from .adapters.websocket import AdapterError, CallRecording, WsCall
 from .audio.noise import add_noise
 from .audio.pcm import samples_to_ms, write_wav
-from .audio.tts import TTS, KokoroTTS
+from .audio.stt import Transcriber, make_transcriber
+from .audio.tts import TTS, make_tts
 from .caller import AICaller, make_caller
 from .checks import (check_barge_in, check_final_state, check_judge, check_latency, check_phrases, check_tools,
                      check_wer, gate, run_status)
@@ -107,16 +109,16 @@ def _transcripts(rec: CallRecording, role: str, lo_ms: int, hi_ms: int | None) -
     return " ".join(parts)
 
 
-def _stt_window(rec: CallRecording, start_ms: int | None, end_ms: int | None, language: str, model: str) -> str:
+def _stt_window(rec: CallRecording, start_ms: int | None, end_ms: int | None, language: str,
+                stt: Transcriber) -> str:
     if start_ms is None or end_ms is None or end_ms <= start_ms:
         return ""
-    from .audio.stt import transcribe
-
     a = rec.agent_track[start_ms * 16: end_ms * 16]
-    return transcribe(a, language, model)
+    return stt(a, language)
 
 
-def build_turns(rec: CallRecording, vad: str, stt_fallback: bool, language: str, stt_model: str) -> tuple[list[dict], list[dict]]:
+def build_turns(rec: CallRecording, vad: str, stt_fallback: bool, language: str,
+                stt: Transcriber) -> tuple[list[dict], list[dict]]:
     """Per turn rows of contract section 6, plus transcript lines [{t_ms, role, text, source}]."""
     timings = []
     for i, t in enumerate(rec.turns):
@@ -128,7 +130,7 @@ def build_turns(rec: CallRecording, vad: str, stt_fallback: bool, language: str,
     first_start = rec.turns[0].caller_start_ms if rec.turns else None
     greet = _transcripts(rec, "agent", 0, first_start)
     if not greet and rec.greeting and stt_fallback and first_start:
-        greet = _stt_window(rec, 0, first_start, language, stt_model)
+        greet = _stt_window(rec, 0, first_start, language, stt)
     if greet:
         lines.append({"t_ms": 0, "role": "agent", "text": greet, "source": "agent"})
     for i, (t, tm, m) in enumerate(zip(rec.turns, timings, measures)):
@@ -137,7 +139,7 @@ def build_turns(rec: CallRecording, vad: str, stt_fallback: bool, language: str,
         source = "agent"
         if not agent_text and stt_fallback and m.agent_start_ms is not None:
             try:
-                agent_text = _stt_window(rec, m.agent_start_ms, m.agent_end_ms, language, stt_model)
+                agent_text = _stt_window(rec, m.agent_start_ms, m.agent_end_ms, language, stt)
                 source = "stt"
             except Exception:
                 agent_text = ""
@@ -223,7 +225,7 @@ def run_scenario(
         agent = config.agent(scenario.agent)
         if agent is None:
             return _error_result(result, f"agent '{scenario.agent}' is not in panchovoice.yaml")
-        if agent.adapter not in ("websocket", "http-turn"):
+        if agent.adapter not in ("websocket", "http-turn", "elevenlabs"):
             return _error_result(result, f"adapter '{agent.adapter}' is not available yet")
         fixture: Fixture | None = None
         if scenario.fixture:
@@ -238,17 +240,16 @@ def run_scenario(
         if provider is None and needs_llm:
             provider = make_provider(config.llm)
         caller = make_caller(scenario, provider)
-        voice = CallerVoice(tts or KokoroTTS(config.tts.url, config.data_path / "cache" / "tts"),
+        voice = CallerVoice(tts or make_tts(config.tts, config.data_path / "cache" / "tts"),
                             scenario.caller.voice, scenario.caller.speed, scenario.audio.noise, scenario.audio.snr_db)
         # synthesize known lines before connecting, so TTS time never shows up as caller delay
         for text in caller.upcoming_texts():
             voice(text)
 
-        stt_model = config.stt.model
+        stt = make_transcriber(config.stt) if stt_fallback else (lambda samples, language=None: "")
 
         def fallback_text(seg: np.ndarray) -> str:
-            from .audio.stt import transcribe
-            return transcribe(seg, scenario.language, stt_model)
+            return stt(seg, scenario.language)
 
         common = dict(
             session_id=session.session_id,
@@ -265,6 +266,14 @@ def run_scenario(
             if agent.adapter == "http-turn":
                 assert agent.http is not None
                 rec = HttpTurnCall(agent.http, caller, voice, **common).run()
+            elif agent.adapter == "elevenlabs":
+                assert agent.elevenlabs is not None
+                el_call = ElevenLabsCall(
+                    agent.elevenlabs, caller, voice,
+                    agent_text_fallback=fallback_text if (stt_fallback and isinstance(caller, AICaller)) else None,
+                    **common,
+                )
+                rec = asyncio.run(el_call.run())
             else:
                 ws_call = WsCall(
                     agent.url, caller, voice,
@@ -287,9 +296,15 @@ def run_scenario(
 
         # recording files
         _write_audio(run_dir, rec, result)
+        if rec.platform:
+            result["platform"] = rec.platform
+        if rec.platform_record is not None:
+            (run_dir / "platform.json").write_text(json.dumps(rec.platform_record, indent=2, ensure_ascii=False),
+                                                   encoding="utf-8")
+            result["artifacts"]["platform"] = "platform.json"
 
         # metrics
-        rows, lines = build_turns(rec, vad, stt_fallback, scenario.language, stt_model)
+        rows, lines = build_turns(rec, vad, stt_fallback, scenario.language, stt)
         http_rec = rec if isinstance(rec, HttpCallRecording) else None
         if http_rec is not None:
             _apply_http_stats(rows, lines, http_rec)
@@ -307,6 +322,10 @@ def run_scenario(
                 c["t_ms"] = http_rec.timeline_ms(c["t_ms"])
                 c["source"] = "mock"
             calls = sorted(calls + [dict(c) for c in http_rec.action_calls], key=lambda c: c["t_ms"])
+        if rec.platform_calls:
+            for c in calls:
+                c.setdefault("source", "mock")
+            calls = sorted(calls + [dict(c) for c in rec.platform_calls], key=lambda c: c["t_ms"])
         state = session.get_state()
         agent_text = " ".join(l["text"] for l in lines if l["role"] == "agent")
 

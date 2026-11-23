@@ -62,6 +62,9 @@ class CallRecording:
     ended_by: str = "caller"  # caller | agent | max_seconds | agent_closed | no_turns
     notes: list[str] = field(default_factory=list)
     greeting: bool = False  # the agent spoke before the first caller turn
+    platform: dict[str, Any] = field(default_factory=dict)  # hosted agents: conversation id, cost, ...
+    platform_calls: list[dict[str, Any]] = field(default_factory=list)  # server side tool calls from the platform
+    platform_record: dict[str, Any] | None = None  # the platform's raw conversation record
 
     @property
     def duration_ms(self) -> int:
@@ -186,7 +189,7 @@ class WsCall:
         self._caller_frames.append(frame)
         if self.ready and not self.closed and self._ws is not None:
             try:
-                await self._ws.send(frame.astype("<i2").tobytes())
+                await self._send_frame(frame)
             except Exception:
                 self.closed = True
         # agent channel: play out one frame of the buffer
@@ -208,6 +211,31 @@ class WsCall:
             self.agent_last_loud = self.sample + FRAME_SAMPLES
         self._prev_loud = loud
         self.sample += FRAME_SAMPLES
+
+    # ------------------------------------------------------------------ transport hooks (subclasses change these)
+    async def _connect(self):
+        from websockets.asyncio.client import connect
+
+        try:
+            return await connect(self.url, max_size=None, open_timeout=10, ping_interval=None)
+        except Exception as exc:
+            raise AdapterError(f"cannot connect to agent at {self.url}: {exc}") from exc
+
+    async def _send_start(self) -> None:
+        start_msg = {"type": "start", "protocol": PROTOCOL, "session": self.session_id, "language": self.language,
+                     "mock_tools_url": self.mock_tools_url, "sample_rate": SAMPLE_RATE}
+        await self._ws.send(json.dumps(start_msg))
+
+    async def _send_frame(self, frame: np.ndarray) -> None:
+        await self._ws.send(frame.astype("<i2").tobytes())
+
+    async def _send_hangup(self) -> None:
+        await self._ws.send(json.dumps({"type": "hangup"}))
+
+    async def _notify(self) -> None:
+        if self._cond is not None:
+            async with self._cond:
+                self._cond.notify_all()
 
     async def _receiver(self) -> None:
         from websockets.exceptions import ConnectionClosed
@@ -371,23 +399,16 @@ class WsCall:
 
     # ------------------------------------------------------------------ entry
     async def run(self) -> CallRecording:
-        from websockets.asyncio.client import connect
-
         self._cond = asyncio.Condition()
-        try:
-            ws = await connect(self.url, max_size=None, open_timeout=10, ping_interval=None)
-        except Exception as exc:
-            raise AdapterError(f"cannot connect to agent at {self.url}: {exc}") from exc
+        ws = await self._connect()
         self._ws = ws
         self.t0 = time.monotonic()
         if self.on_t0:
             self.on_t0(self.t0)
-        start_msg = {"type": "start", "protocol": PROTOCOL, "session": self.session_id, "language": self.language,
-                     "mock_tools_url": self.mock_tools_url, "sample_rate": SAMPLE_RATE}
         recv_task = asyncio.create_task(self._receiver())
         tick_task = asyncio.create_task(self._ticker())
         try:
-            await ws.send(json.dumps(start_msg))
+            await self._send_start()
             ok = await self._wait(lambda: self.ready, int(self.ready_timeout_s * 1000))
             if not ok:
                 raise AdapterError("agent closed the connection before ready" if self.closed
@@ -396,7 +417,7 @@ class WsCall:
         finally:
             try:
                 if not self.closed:
-                    await ws.send(json.dumps({"type": "hangup"}))
+                    await self._send_hangup()
             except Exception:
                 pass
             self._stop = True

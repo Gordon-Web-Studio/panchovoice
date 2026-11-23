@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .config import AgentConfig, Config, LLMConfig
+from .config import AgentConfig, Config, LLMConfig, STTConfig, TTSConfig
 
 
 def local_host(host: str | None) -> str:
@@ -80,6 +80,24 @@ def tts_ok(url: str, timeout: float = 0.8) -> bool:
 
 def stt_importable() -> bool:
     return importlib.util.find_spec("faster_whisper") is not None
+
+
+def tts_ready(cfg: TTSConfig, timeout: float = 0.8) -> tuple[bool, str]:
+    """Kokoro: the server answers. Cloud: the API key env var is set (no billed request)."""
+    if cfg.provider == "kokoro":
+        ok = tts_ok(cfg.url or "", timeout)
+        return ok, f"kokoro at {cfg.url}" if ok else f"kokoro: no answer at {cfg.url}/v1/models"
+    ok = bool(os.environ.get(cfg.key_env))
+    return ok, f"{cfg.provider}: {cfg.key_env} is {'set' if ok else 'not set'}"
+
+
+def stt_ready(cfg: STTConfig) -> tuple[bool, str]:
+    """faster-whisper: importable. Deepgram: the API key env var is set."""
+    if cfg.provider == "faster-whisper":
+        ok = stt_importable()
+        return ok, f"faster-whisper {'importable' if ok else 'not importable'}, model {cfg.model}"
+    ok = bool(os.environ.get(cfg.key_env))
+    return ok, f"{cfg.provider}: {cfg.key_env} is {'set' if ok else 'not set'}"
 
 
 def ollama_models(url: str = "http://localhost:11434", timeout: float = 1.0) -> list[str] | None:

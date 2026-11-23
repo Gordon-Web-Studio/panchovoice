@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -99,7 +100,45 @@ class Asker:
 # --------------------------------------------------------------------------- yaml
 
 
-def render_config(provider: str, model: str, agents: list[dict[str, str]], llm_url: str | None = None) -> str:
+VOICE_STACKS = {
+    # key: (tts provider, stt provider)
+    "local": ("kokoro", "faster-whisper"),
+    "elevenlabs-deepgram": ("elevenlabs", "deepgram"),
+    "deepgram": ("deepgram", "deepgram"),
+}
+
+
+def _voice_lines(tts_provider: str, stt_provider: str) -> list[str]:
+    if tts_provider == "kokoro":
+        lines = ["tts:", "  provider: kokoro", "  url: http://localhost:8880"]
+    elif tts_provider == "elevenlabs":
+        lines = [
+            "tts:                             # the key comes from ELEVENLABS_API_KEY, never from this file",
+            "  provider: elevenlabs",
+            "  model: eleven_multilingual_v2",
+            "  default_voice: JBFqnCBsd6RMkjVDRZzb   # ElevenLabs voice id for scenarios that name a Kokoro voice",
+            "  # voices: { af_heart: <voice id>, em_alex: <voice id> }",
+        ]
+    else:
+        lines = [
+            "tts:                             # the key comes from DEEPGRAM_API_KEY, never from this file",
+            "  provider: deepgram",
+            "  default_voice: aura-2-thalia-en      # Deepgram Aura voice for scenarios that name a Kokoro voice",
+            "  # voices: { af_heart: aura-2-thalia-en, em_alex: <aura voice> }",
+        ]
+    if stt_provider == "deepgram":
+        lines += [
+            "stt:                             # the key comes from DEEPGRAM_API_KEY, never from this file",
+            "  provider: deepgram",
+            "  model: nova-3",
+        ]
+    else:
+        lines += ["stt:", "  provider: faster-whisper", "  model: small                   # tiny | base | small | medium"]
+    return lines
+
+
+def render_config(provider: str, model: str, agents: list[dict[str, str]], llm_url: str | None = None,
+                  tts_provider: str = "kokoro", stt_provider: str = "faster-whisper") -> str:
     lines = [
         "# PanchoVoiceAI project config (written by `pv init`). Docs: docs/architecture/contract.md section 1",
         "version: 1",
@@ -118,23 +157,23 @@ def render_config(provider: str, model: str, agents: list[dict[str, str]], llm_u
     ]
     if provider == "anthropic":
         lines.insert(6, "  # the API key comes from the ANTHROPIC_API_KEY environment variable, never from this file")
-    lines += [
-        "tts:",
-        "  provider: kokoro",
-        "  url: http://localhost:8880",
-        "stt:",
-        "  provider: faster-whisper",
-        "  model: small                   # tiny | base | small | medium",
-        "agents:",
-    ]
+    lines += _voice_lines(tts_provider, stt_provider)
+    lines += ["agents:"]
     for a in agents:
         lines += [
             f"  - id: {a['id']}",
             f"    name: {json.dumps(a['name'])}",
             f"    adapter: {a.get('adapter', 'websocket')}",
-            f"    url: {a['url']}",
-            f"    language: {a['language']}",
         ]
+        if a.get("adapter") == "elevenlabs":
+            lines += [
+                "    elevenlabs:                  # the key comes from ELEVENLABS_API_KEY, never from this file",
+                f"      agent_id: {a['agent_id']}",
+                "      # dynamic_variables: { customer_name: Jordan }",
+            ]
+        else:
+            lines.append(f"    url: {a['url']}")
+        lines.append(f"    language: {a['language']}")
     lines += ["gate:", "  pass_rate: 0.95", "  critical_must_pass_all: true", ""]
     return "\n".join(lines)
 
@@ -288,11 +327,26 @@ def _wizard(ask: Asker, console: Console, target: Path, root: Path) -> int:
         if not models:
             console.print(f"[yellow]Ollama is not running now.[/] Start it and run `ollama pull {model}`.")
 
+    # voice and ears of the harness
+    console.print("The caller needs a voice (text to speech), and the harness needs ears (speech to text).")
+    stack = ask.select("voice", "Which voice and speech to text?", [
+        ("local", "Local and free: Kokoro (Docker) and faster-whisper, nothing leaves this PC", False),
+        ("elevenlabs-deepgram", "Cloud: ElevenLabs voice, Deepgram speech to text (needs ELEVENLABS_API_KEY and DEEPGRAM_API_KEY)", False),
+        ("deepgram", "Cloud, one account: Deepgram for both (needs DEEPGRAM_API_KEY)", False),
+    ], "local")
+    tts_provider, stt_provider = VOICE_STACKS[stack]
+    for env in sorted({k for p, k in (("elevenlabs", "ELEVENLABS_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"))
+                       if p in (tts_provider, stt_provider)}):
+        if not os.environ.get(env):
+            console.print(f"[yellow]{env} is not set.[/] Set it in your shell before you run tests. "
+                          "It is never stored in the yaml.")
+
     # 4) agent
     _step(console, 4, "Choose what to test")
     kind = ask.select("agent", "Which agent do you want to test?", [
         ("demo", "The ACME demo agent (recommended first, runs on this PC)", False),
         ("websocket", "My own WebSocket agent (pv-ws/1 protocol)", False),
+        ("elevenlabs", "An ElevenLabs Agents agent (needs ELEVENLABS_API_KEY for private agents)", False),
         ("http-turn", "An HTTP turn agent (coming in phase 3)", True),
     ], "demo")
     agents = [dict(DEMO_AGENT)]
@@ -305,10 +359,21 @@ def _wizard(ask: Asker, console: Console, target: Path, root: Path) -> int:
         name = ask.text("agent_name", "A display name", "My voice agent")
         agents.append({"id": aid, "name": name, "adapter": "websocket", "url": url, "language": lang})
         console.print("The demo agent stays in the file too, so the demo scenarios keep working.")
+    elif kind == "elevenlabs":
+        el_id = ask.text("elevenlabs_agent_id", "ElevenLabs agent id (agent_..., from the agent page)", "")
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", el_id or ""):
+            raise ValueError(f"the ElevenLabs agent id looks wrong (got {el_id!r})")
+        lang = ask.select("agent_language", "Language of your agent", [("en", "English", False), ("es", "Spanish", False)], "en")
+        aid = ask.text("agent_id", "A short id for your agent (kebab-case)", "my-elevenlabs-agent")
+        name = ask.text("agent_name", "A display name", "My ElevenLabs agent")
+        agents.append({"id": aid, "name": name, "adapter": "elevenlabs", "agent_id": el_id, "language": lang})
+        if not os.environ.get("ELEVENLABS_API_KEY"):
+            console.print("[yellow]ELEVENLABS_API_KEY is not set.[/] Private agents and the tool call record need it.")
+        console.print("Client tools are answered from the mock tool server. Webhook tools call your real backend.")
 
     # 5) write
     _step(console, 5, f"Write {target.name}")
-    text = render_config(provider, model, agents, llm_url)
+    text = render_config(provider, model, agents, llm_url, tts_provider, stt_provider)
     try:
         parse_config_text(text, str(target))
     except ConfigError as exc:

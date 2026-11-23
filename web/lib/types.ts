@@ -23,7 +23,7 @@ export interface Config {
   scenarios_dir?: string;
   fixtures_dir?: string;
   llm?: { provider: string; model: string; budget_usd?: number; max_calls_per_run?: number };
-  tts?: { provider: string; url?: string };
+  tts?: { provider: string; url?: string; model?: string; default_voice?: string };
   stt?: { provider: string; model?: string };
   agents?: AgentConfig[];
   gate?: { pass_rate: number; critical_must_pass_all: boolean };

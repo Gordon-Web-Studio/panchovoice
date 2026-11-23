@@ -26,7 +26,7 @@ A caller agent phones your voice agent with real audio. PanchoVoiceAI records bo
 
 ```mermaid
 flowchart LR
-  S[Scenario YAML] --> C[Caller: scripted or AI, Kokoro voice]
+  S[Scenario YAML] --> C[Caller: scripted or AI, Kokoro or cloud voice]
   F[Fixture JSON: one source of data] --> C
   F --> M[Mock tool server]
   C <-- "audio, pv-ws/1" --> A[Agent under test]
@@ -43,7 +43,7 @@ flowchart LR
 
 1. A **scenario** file says who calls, what they say, and what must happen.
 2. A **fixture** file holds the mock data. It feeds the mock tool server and the caller facts.
-3. The **caller** speaks with a Kokoro voice. Your agent answers with audio.
+3. The **caller** speaks with a Kokoro voice (local) or an ElevenLabs or Deepgram voice (cloud). Your agent answers with audio.
 4. Your agent calls its tools on the **mock tool server**. Each call is recorded.
 5. PanchoVoiceAI **scores** the recording, the tool calls, and the transcript.
 6. You read the result in the terminal, in the panel, or in CI.
@@ -54,7 +54,7 @@ You need:
 
 - Python 3.12 with [uv](https://docs.astral.sh/uv/)
 - Node 20 or newer (to build the panel)
-- Docker (for the Kokoro voice server and Ollama)
+- Docker (for the Kokoro voice server and Ollama). Not needed for the voice if you use ElevenLabs or Deepgram, see [docs/configuration.md](docs/configuration.md#tts-the-caller-voice)
 
 ```bash
 git clone https://github.com/Gordon-Web-Studio/panchovoice.git panchovoice
@@ -127,14 +127,15 @@ Details and limits: [docs/metrics.md](docs/metrics.md).
 **Today**
 
 - Any agent that speaks the `pv-ws/1` WebSocket protocol. The protocol is small: PCM audio frames plus a few JSON messages. See [docs/adapters.md](docs/adapters.md).
+- ElevenLabs Agents, through their WebSocket API (`adapter: elevenlabs`). Client tools are answered from the mock tool server. See [docs/adapters.md](docs/adapters.md#elevenlabs-agents).
+- HTTP turn agents (one request per turn), for example in-house web assistants.
 - The ACME Appointments demo agent (in `demo/acme-agent/`).
 - MCP server (`pv mcp`), so a coding agent such as Claude Code, Claude Desktop or Cursor can run suites and read results. See [docs/mcp.md](docs/mcp.md).
 
 **Roadmap (planned, not built yet)**
 
-- HTTP turn agents (one request per turn), for example in-house web assistants
 - Pipecat and LiveKit agents
-- Vapi, Retell and ElevenLabs agents
+- Vapi and Retell agents
 - Phone calls through Twilio
 - A ready-made GitHub Action (today there is an example workflow, see [docs/ci.md](docs/ci.md))
 - Webhooks, baseline comparison, red team suites

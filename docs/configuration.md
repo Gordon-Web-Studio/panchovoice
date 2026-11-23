@@ -82,15 +82,41 @@ Notes:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `tts.provider` | `kokoro` | `kokoro` | Text to speech engine. Kokoro through an OpenAI compatible HTTP server is the only one today |
-| `tts.url` | string | `http://localhost:8880` | URL of the Kokoro server |
+| `tts.provider` | `kokoro`, `elevenlabs`, `deepgram` | `kokoro` | Text to speech engine. `kokoro` runs locally (Docker). `elevenlabs` and `deepgram` (Aura) are cloud APIs |
+| `tts.url` | string | per provider | `http://localhost:8880`, `https://api.elevenlabs.io` or `https://api.deepgram.com` |
+| `tts.model` | string | `eleven_multilingual_v2` for ElevenLabs | ElevenLabs model id. Not used by Kokoro or Deepgram (for Deepgram the voice is the model) |
+| `tts.default_voice` | string | `JBFqnCBsd6RMkjVDRZzb` (ElevenLabs), `aura-2-thalia-en` (Deepgram) | Provider voice used when a scenario names a Kokoro voice (`af_heart`, ...) that is not in `tts.voices` |
+| `tts.voices` | map | `{}` | Scenario voice to provider voice, for example `{af_heart: <ElevenLabs voice id>, em_alex: aura-2-orion-en}` |
+| `tts.api_key_env` | env var name | `ELEVENLABS_API_KEY` or `DEEPGRAM_API_KEY` | Name of the environment variable that holds the key |
+
+Voice rules for cloud providers: a scenario voice found in `tts.voices` is mapped; a Kokoro style id (`xx_name`) uses `tts.default_voice`; anything else is sent as is, so a scenario can name a provider voice directly.
+
+Every caller line is cached in `data/cache/tts/` by provider, model, voice, speed and text, so a cloud provider is billed once per line, not once per run. Scripted lines are made before the call starts, so TTS time never counts as caller delay.
+
+Example, cloud voice and ears:
+
+```yaml
+tts:
+  provider: elevenlabs            # key in ELEVENLABS_API_KEY
+  default_voice: JBFqnCBsd6RMkjVDRZzb
+  voices: { af_heart: <voice id>, em_alex: <voice id> }
+stt:
+  provider: deepgram              # key in DEEPGRAM_API_KEY
+  model: nova-3
+```
 
 ## `stt`: speech to text inside the harness
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `stt.provider` | `faster-whisper` | `faster-whisper` | Speech to text engine (runs on the CPU) |
-| `stt.model` | `tiny`, `base`, `small`, `medium` | `small` | Whisper model size. Smaller is faster and needs less memory, but is less exact |
+| `stt.provider` | `faster-whisper`, `deepgram` | `faster-whisper` | Speech to text engine. `faster-whisper` runs on the CPU; `deepgram` is a cloud API |
+| `stt.model` | string | `small` (whisper), `nova-3` (Deepgram) | Whisper: `tiny`, `base`, `small`, `medium`. Deepgram: any model name it accepts |
+| `stt.url` | string | `https://api.deepgram.com` | Deepgram only |
+| `stt.api_key_env` | env var name | `DEEPGRAM_API_KEY` | Deepgram only: name of the environment variable that holds the key |
+
+API keys are read only from environment variables. A key in `panchovoice.yaml` is a config error. With a cloud provider, the caller lines and the agent audio are sent to that provider.
+
+Voice activity detection (Silero) always runs locally, inside the Python process, so latency and barge-in are measured the same way with every provider.
 
 The harness uses this model to transcribe the agent audio when the agent does not send its own `transcript` messages. WER is always computed from what the agent itself reports that it heard.
 
@@ -102,8 +128,9 @@ A list. Each scenario names one agent by `id`.
 |---|---|---|---|
 | `agents[].id` | string | required | The id that scenarios use in `agent:` |
 | `agents[].name` | string | empty | Display name |
-| `agents[].adapter` | `websocket`, `http-turn` | `websocket` | How the caller connects. `websocket` is the `pv-ws/1` protocol. `http-turn` is accepted in the file but its adapter is planned, not built |
-| `agents[].url` | string | required | For `websocket`: the WebSocket URL of the agent |
+| `agents[].adapter` | `websocket`, `http-turn`, `elevenlabs` | `websocket` | How the caller connects. `websocket` is the `pv-ws/1` protocol. `http-turn` is one HTTP request per turn. `elevenlabs` is an ElevenLabs Agents agent |
+| `agents[].url` | string | required for `websocket` | For `websocket`: the WebSocket URL of the agent. Set for you with `elevenlabs` |
+| `agents[].elevenlabs` | section | required for `elevenlabs` | `agent_id` (required), `api_key_env` (default `ELEVENLABS_API_KEY`), `dynamic_variables`, `environment`, `branch_id`, `fetch_conversation` (default true), `conversation_wait_s` (default 30), `api_url`. See [adapters.md](adapters.md#elevenlabs-agents) |
 | `agents[].language` | `en`, `es` | `en` | Default language of the agent |
 
 When the `agents` key is missing, the list holds the demo agent (`acme-demo` at `ws://localhost:8710/ws`).

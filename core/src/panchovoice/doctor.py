@@ -13,7 +13,8 @@ from pathlib import Path
 from .config import Config, load_config
 from .errors import ConfigError
 from .mocktools import port_is_free
-from .probe import (agent_health_text, find_web_out, http_get, llm_ready, ollama_models, stt_importable, tts_ok)
+from .probe import (agent_health_text, find_web_out, http_get, llm_ready, ollama_models, stt_importable, stt_ready,
+                    tts_ok, tts_ready)
 
 DEMO_MODEL = "qwen2.5:7b"
 
@@ -66,6 +67,13 @@ def check_docker() -> Check:
 
 
 def check_tts(cfg: Config) -> Check:
+    if cfg.tts.is_cloud:
+        name = {"elevenlabs": "ElevenLabs TTS", "deepgram": "Deepgram TTS"}[cfg.tts.provider]
+        ok, detail = tts_ready(cfg.tts)
+        if ok:
+            return _p("tts", name, f"{cfg.tts.key_env} is set, voice {cfg.tts.default_voice}", True)
+        return _bad("tts", name, f"{cfg.tts.key_env} is not set",
+                    f"Set {cfg.tts.key_env} in your shell (never in panchovoice.yaml)", True)
     if tts_ok(cfg.tts.url, 2.0):
         return _p("tts", "Kokoro TTS", cfg.tts.url, True)
     return _bad("tts", "Kokoro TTS", f"no answer at {cfg.tts.url}/v1/models",
@@ -112,6 +120,12 @@ def whisper_cached(model: str) -> bool:
 
 
 def check_stt(cfg: Config) -> Check:
+    if cfg.stt.is_cloud:
+        ok, _detail = stt_ready(cfg.stt)
+        if ok:
+            return _p("stt", "Deepgram STT", f"{cfg.stt.key_env} is set, model {cfg.stt.model}", True)
+        return _bad("stt", "Deepgram STT", f"{cfg.stt.key_env} is not set",
+                    f"Set {cfg.stt.key_env} in your shell (never in panchovoice.yaml)", True)
     if not stt_importable():
         return _bad("stt", "faster-whisper", "not importable", "Reinstall: `uv sync` in core/", True)
     m = cfg.stt.model
@@ -119,6 +133,21 @@ def check_stt(cfg: Config) -> Check:
         return _p("stt", "faster-whisper", f"importable, model {m} cached", True)
     return Check("stt", "faster-whisper", "WARN", f"importable, model {m} not cached yet",
                  "It downloads on the first run (base about 150 MB, small about 480 MB)", True)
+
+
+def check_elevenlabs_agents(cfg: Config) -> list[Check]:
+    out = []
+    for a in cfg.agents:
+        if a.adapter != "elevenlabs" or a.elevenlabs is None:
+            continue
+        env = a.elevenlabs.api_key_env
+        name = f"ElevenLabs agent {a.id}"
+        if os.environ.get(env):
+            out.append(_p(f"agent:{a.id}", name, f"{a.elevenlabs.agent_id}, {env} is set", False))
+        else:
+            out.append(Check(f"agent:{a.id}", name, "WARN", f"{env} is not set",
+                             f"Set {env} in your shell: private agents and the tool call record need it", False))
+    return out
 
 
 def check_demo_agent(cfg: Config) -> Check:
@@ -174,7 +203,8 @@ def check_disk(cfg: Config) -> Check:
 
 def run_checks(cfg: Config) -> list[Check]:
     checks = [check_python(), check_uv(), check_docker(), check_tts(cfg), check_ollama(cfg), check_llm(cfg),
-              check_stt(cfg), check_demo_agent(cfg), check_web(cfg), *check_ports(), check_disk(cfg)]
+              check_stt(cfg), check_demo_agent(cfg), *check_elevenlabs_agents(cfg), check_web(cfg), *check_ports(),
+              check_disk(cfg)]
     return checks
 
 

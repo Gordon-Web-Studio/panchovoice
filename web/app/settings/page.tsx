@@ -89,16 +89,25 @@ export default function SettingsPage() {
           <Section
             icon={<Mic size={16} className="text-accent" aria-hidden />}
             title="Text to speech (caller voice)"
-            note="Kokoro runs locally as an OpenAI compatible HTTP server. Start it with Docker compose."
+            note={
+              c.tts?.provider && c.tts.provider !== "kokoro"
+                ? "A cloud provider. The API key comes from an environment variable, never from panchovoice.yaml. Each line is cached, so it is billed once."
+                : "Kokoro runs locally as an OpenAI compatible HTTP server. Start it with Docker compose."
+            }
           >
             <Row k="Provider" v={c.tts?.provider} />
             <Row k="URL" v={c.tts?.url} />
+            {c.tts?.default_voice ? <Row k="Default voice" v={c.tts.default_voice} /> : null}
             <Row k="Status" v={health.data ? (health.data.checks.tts ? "up" : "down") : "checking"} />
           </Section>
           <Section
             icon={<Ear size={16} className="text-accent" aria-hidden />}
             title="Speech to text (scoring)"
-            note="faster-whisper turns the recording into text for WER and the judge. Bigger models are more exact and slower."
+            note={
+              c.stt?.provider === "deepgram"
+                ? "Deepgram turns the agent audio into text for the judge and the transcript, when the agent does not send its own. The API key comes from an environment variable."
+                : "faster-whisper turns the recording into text for WER and the judge. Bigger models are more exact and slower."
+            }
           >
             <Row k="Provider" v={c.stt?.provider} />
             <Row k="Model" v={c.stt?.model} />

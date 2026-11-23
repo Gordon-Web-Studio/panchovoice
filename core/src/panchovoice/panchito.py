@@ -33,7 +33,7 @@ tags: [list]
 fixture: file in fixtures/ (for example acme-clinic.json); needed when expect uses tools or final_state
 caller:
   mode: scripted | ai
-  voice: Kokoro voice id (default af_heart)
+  voice: voice id (default af_heart, a Kokoro voice; cloud providers map it through tts.voices)
   speed: 1.0
   turns: (scripted only, required) list of {say: "text", interrupt_after_ms: optional barge-in ms after the agent starts, pause_ms: optional silence before speaking}
   persona, goal: (ai only, required) text

@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- ElevenLabs Agents adapter (`adapter: elevenlabs`). The caller talks to the agent over the ElevenLabs WebSocket API (signed URL with `ELEVENLABS_API_KEY`, any `pcm_*` or `ulaw_8000` audio format). Client tools are answered from the mock tool server, so tool calls and final state are checked as usual. After the call, server side (webhook) tool calls, the cost and the termination reason are read from the conversation record and saved as `platform.json`. `pv init` and `pv doctor` know the new adapter.
+- Cloud voice providers. `tts.provider` accepts `elevenlabs` and `deepgram` (Aura), and `stt.provider` accepts `deepgram`. Keys come only from `ELEVENLABS_API_KEY` and `DEEPGRAM_API_KEY` (or the env var named in `api_key_env`). Scenario voices map to provider voices with `tts.voices` and `tts.default_voice`. `pv init`, `pv doctor` and the panel health check know the new providers.
+
+### Changed
+
+- `demo/docker-compose.yml` publishes Kokoro, Ollama and the demo agent on `127.0.0.1` only, so they are not reachable from the local network.
+
 ## [0.1.0] - 2026-11-21
 
 First public release.

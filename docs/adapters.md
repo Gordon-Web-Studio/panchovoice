@@ -257,22 +257,69 @@ expect:
 
 Without a transcribe step, the fake agent hears the exact caller text. With it, the fake agent answers `audio <n> ms` because it has no speech to text; the tests give it the expected words instead.
 
+## ElevenLabs Agents
+
+`adapter: elevenlabs` tests an agent built on ElevenLabs Agents (Conversational AI) through its WebSocket API. No phone line and no code in your agent.
+
+### Config
+
+```yaml
+agents:
+  - id: my-agent
+    name: My ElevenLabs agent
+    adapter: elevenlabs
+    language: en
+    elevenlabs:
+      agent_id: agent_xxxxxxxx              # from the agent page in ElevenLabs
+      # api_key_env: ELEVENLABS_API_KEY     # default
+      # dynamic_variables: { customer_name: Jordan }
+      # environment: production
+      # branch_id: ...
+      # fetch_conversation: true            # read tool calls and cost after the call
+      # conversation_wait_s: 30
+```
+
+Set the key in your shell: `export ELEVENLABS_API_KEY=...`. It is never read from the yaml. Without a key, only a public agent works, and the conversation record (server side tool calls, cost) is not read.
+
+### One call, step by step
+
+1. `GET /v1/convai/conversation/get-signed-url?agent_id=...` with the key gives a signed WebSocket URL.
+2. The caller sends `conversation_initiation_client_data` (with `dynamic_variables` when set). The call starts when `conversation_initiation_metadata` arrives. It names the audio format of each direction; `pcm_8000` to `pcm_48000` and `ulaw_8000` are converted to and from 16 kHz.
+3. Every 20 ms the caller sends one frame as `{"user_audio_chunk": "<base64>"}`, speech or silence, on the same timeline as `pv-ws/1`. Agent `audio` events are played out into the recording. `interruption` drops the agent audio not yet played, `ping` gets a `pong`.
+4. The agent's own transcripts become the transcript: `user_transcript` (what the agent heard, used for WER) and `agent_response` (fixed by `agent_response_correction` after an interruption).
+5. The caller hangs up by closing the WebSocket. When the agent ends the call (for example with the `end_call` tool) and the server closes normally, the run shows `ended_by: agent`.
+6. After the call, `GET /v1/convai/conversations/{id}` is read until its status is `done`. The record is saved as `platform.json` in the run folder, and `result.platform` holds the conversation id, the cost in USD, and the termination reason.
+
+### Tools
+
+| Tool type in ElevenLabs | What happens in a test | What is checked |
+|---|---|---|
+| **Client tool** | The agent sends `client_tool_call` on the WebSocket. PanchoVoiceAI runs the tool on the mock tool server (fixture data) and sends back `client_tool_result` | Name, arguments, order, final state. Recommended |
+| **Webhook (server) tool** | ElevenLabs calls the URL set in the tool, that is your real backend | Name and arguments, from the conversation record (`source: elevenlabs:webhook`). No final state |
+| **System tool** (`end_call`, ...) | Runs inside ElevenLabs | Listed in the run notes, not in tool calls |
+
+Webhook tools have real side effects during tests. For tests, use a copy of the agent with client tools of the same names, or point the webhooks at a test backend. Tool names must match the tool names in the fixture.
+
+### Cost
+
+Every test is a real ElevenLabs conversation and is billed like one. The cost of each call is in `result.platform.cost_usd`.
+
 ## Roadmap: platforms
 
-Everything in this section is **planned, not built**, except the HTTP turn row. The table shows how each platform is expected to connect, without a phone line where possible.
+Everything in this section is **planned, not built**, except the HTTP turn and ElevenLabs rows. The table shows how each platform is expected to connect, without a phone line where possible.
 
 | Platform | Planned path | Evidence the platform gives by API | Config by API |
 |---|---|---|---|
 | **In-house agents (HTTP turn)** | **Built**: the `http-turn` adapter above | Only what the harness records, or what the agent exposes | Depends on the agent |
 | **In-house agents (WebSocket, WebRTC)** | `pv-ws/1` today. A WebRTC transport (for Pipecat based agents) is planned | The harness recording, plus what the agent exposes | Depends on the agent |
 | **Vapi** | Direct WebSocket (PCM 16 kHz or mulaw 8 kHz). SIP and text chat also exist | Transcript with times, stereo recording, tool calls with args and results, latency per turn | Yes |
-| **ElevenLabs Agents** | Direct WebSocket | Transcript, tool calls with results, metrics per turn | Yes |
+| **ElevenLabs Agents** | **Built**: the `elevenlabs` adapter above (direct WebSocket) | Transcript, tool calls with results, metrics per turn | Yes |
 | **Twilio** | Media Streams (mulaw 8 kHz). Twilio is a transport: with it the caller can reach any phone number | Two channel recording only. The rest is in your app | No, it is your app |
 | **LiveKit** | Join the room as a participant with no screen | Everything comes from the agent code, not from an API | No, it is code (trigger by Git) |
 | **Retell** | Web call with the SDK, or SIP. There is no audio WebSocket | Transcript per word, multichannel recording, tool calls, latency P50 to P99 | Yes |
 | **Pipecat** | Through the WebRTC or WebSocket transports above | From the agent code | No, it is code |
 
-Planned order: 1) HTTP turn (done). 2) WebRTC and WebSocket for in-house agents. 3) Vapi and ElevenLabs over WebSocket. 4) A Twilio caller. 5) LiveKit and Retell.
+Planned order: 1) HTTP turn (done). ElevenLabs Agents (done). 2) WebRTC and WebSocket for in-house agents. 3) Vapi over WebSocket. 4) A Twilio caller. 5) LiveKit and Retell.
 
 Sources (read on 2026-11-17): [docs.vapi.ai](https://docs.vapi.ai/calls/websocket-transport), [docs.retellai.com](https://docs.retellai.com/api-references/get-call), [docs.livekit.io](https://docs.livekit.io/testing/simulations/), [twilio.com/docs](https://www.twilio.com/docs/voice/media-streams/websocket-messages), [elevenlabs.io/docs](https://elevenlabs.io/docs/api-reference/conversations/get).
 

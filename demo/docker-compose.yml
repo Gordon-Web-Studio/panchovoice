@@ -10,13 +10,13 @@ services:
   kokoro:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
     ports:
-      - "8880:8880"
+      - "127.0.0.1:8880:8880"
     restart: unless-stopped
 
   ollama:
     image: ollama/ollama
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama:/root/.ollama
     restart: unless-stopped
@@ -25,7 +25,7 @@ services:
     build:
       context: ./acme-agent
     ports:
-      - "8710:8710"
+      - "127.0.0.1:8710:8710"
     environment:
       OLLAMA_URL: http://ollama:11434
       KOKORO_URL: http://kokoro:8880

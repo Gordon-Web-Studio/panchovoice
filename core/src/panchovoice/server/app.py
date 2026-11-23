@@ -23,7 +23,7 @@ from ..errors import FieldError
 from ..fixture import validate_fixture_text
 from ..llm import LLMProvider
 from ..mocktools import DEFAULT_REGISTRY, SessionRegistry, make_mock_router
-from ..probe import agent_reachable, find_web_out, llm_ready, stt_importable, tts_ok
+from ..probe import agent_reachable, find_web_out, llm_ready, stt_ready, tts_ready
 from ..runner import iso, utc_now
 from ..scenario import KEBAB, check_scenario_refs, list_scenario_files, validate_scenario_text
 from .suites import SuiteBusy, SuiteManager
@@ -115,14 +115,17 @@ def create_app(
         return {k: bool(f.result()) for k, f in futs.items()}
 
     def _health() -> dict[str, Any]:
-        f_tts = pool.submit(tts_ok, config.tts.url, 0.6)
+        f_tts = pool.submit(tts_ready, config.tts, 0.6)
         f_llm = pool.submit(llm_ready, config.llm, 0.6)
         agents = _agents_reach()
         llm_ok, llm_detail = f_llm.result()
-        checks = {"tts": bool(f_tts.result()), "stt": stt_importable(), "llm": bool(llm_ok), "agents": agents}
+        tts_ok, tts_detail = f_tts.result()
+        stt_ok, stt_detail = stt_ready(config.stt)
+        checks = {"tts": bool(tts_ok), "stt": bool(stt_ok), "llm": bool(llm_ok), "agents": agents}
         ok = checks["tts"] and checks["stt"] and checks["llm"] and all(agents.values())
         return {"ok": ok, "version": __version__, "checks": checks,
-                "details": {"llm": f"{config.llm.provider}: {llm_detail}", "tts_url": config.tts.url}}
+                "details": {"llm": f"{config.llm.provider}: {llm_detail}", "tts": tts_detail, "stt": stt_detail,
+                            "tts_url": config.tts.url}}
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:

@@ -28,14 +28,81 @@ class LLMConfig(_Strict):
     url: str | None = None
 
 
+ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+WHISPER_MODELS = ("tiny", "base", "small", "medium")
+
+# provider -> (url, model, default_voice, api key env var)
+TTS_DEFAULTS: dict[str, tuple[str, str | None, str | None, str | None]] = {
+    "kokoro": ("http://localhost:8880", None, None, None),
+    "elevenlabs": ("https://api.elevenlabs.io", "eleven_multilingual_v2", "JBFqnCBsd6RMkjVDRZzb", "ELEVENLABS_API_KEY"),
+    "deepgram": ("https://api.deepgram.com", None, "aura-2-thalia-en", "DEEPGRAM_API_KEY"),
+}
+STT_DEFAULTS: dict[str, tuple[str | None, str, str | None]] = {
+    "faster-whisper": (None, "small", None),
+    "deepgram": ("https://api.deepgram.com", "nova-3", "DEEPGRAM_API_KEY"),
+}
+
+
+def _check_env_name(value: str | None) -> None:
+    if value is not None and not ENV_NAME.fullmatch(value):
+        raise ValueError("'api_key_env' must be an env var name (letters, digits, _), not the key itself")
+
+
 class TTSConfig(_Strict):
-    provider: Literal["kokoro"] = "kokoro"
-    url: str = "http://localhost:8880"
+    """The caller voice. Cloud API keys come only from environment variables, never from the yaml."""
+
+    provider: Literal["kokoro", "elevenlabs", "deepgram"] = "kokoro"
+    url: str | None = None            # default per provider
+    model: str | None = None          # elevenlabs model id (deepgram: the voice is the model)
+    default_voice: str | None = None  # provider voice for scenarios that name a Kokoro voice (af_heart, ...)
+    voices: dict[str, str] = Field(default_factory=dict)  # scenario voice -> provider voice
+    api_key_env: str | None = None    # name of the env var that holds the key
+
+    @model_validator(mode="after")
+    def _defaults(self) -> "TTSConfig":
+        _check_env_name(self.api_key_env)
+        url, model, voice, env = TTS_DEFAULTS[self.provider]
+        self.url = self.url or url
+        self.model = self.model or model
+        self.default_voice = self.default_voice or voice
+        self.api_key_env = self.api_key_env or env
+        return self
+
+    @property
+    def key_env(self) -> str:
+        return self.api_key_env or ""
+
+    @property
+    def is_cloud(self) -> bool:
+        return self.provider != "kokoro"
 
 
 class STTConfig(_Strict):
-    provider: Literal["faster-whisper"] = "faster-whisper"
-    model: Literal["tiny", "base", "small", "medium"] = "small"
+    """Speech to text inside the harness. Cloud API keys come only from environment variables."""
+
+    provider: Literal["faster-whisper", "deepgram"] = "faster-whisper"
+    model: str | None = None        # whisper: tiny | base | small | medium; deepgram: nova-3, ...
+    url: str | None = None          # deepgram only
+    api_key_env: str | None = None  # deepgram only
+
+    @model_validator(mode="after")
+    def _defaults(self) -> "STTConfig":
+        _check_env_name(self.api_key_env)
+        url, model, env = STT_DEFAULTS[self.provider]
+        self.url = self.url or url
+        self.model = self.model or model
+        self.api_key_env = self.api_key_env or env
+        if self.provider == "faster-whisper" and self.model not in WHISPER_MODELS:
+            raise ValueError(f"faster-whisper model must be one of {', '.join(WHISPER_MODELS)}")
+        return self
+
+    @property
+    def key_env(self) -> str:
+        return self.api_key_env or ""
+
+    @property
+    def is_cloud(self) -> bool:
+        return self.provider != "faster-whisper"
 
 
 class HttpAuth(_Strict):
@@ -92,16 +159,47 @@ class HttpConfig(_Strict):
     timeout_s: float = Field(30.0, gt=0)
 
 
+class ElevenLabsAgentConfig(_Strict):
+    """An ElevenLabs Agents (Conversational AI) agent. The API key comes only from an environment variable."""
+
+    agent_id: str
+    api_key_env: str = "ELEVENLABS_API_KEY"  # signed url for private agents, and the conversation record after the call
+    api_url: str = "https://api.elevenlabs.io"
+    environment: str | None = None
+    branch_id: str | None = None
+    dynamic_variables: dict[str, Any] = Field(default_factory=dict)
+    fetch_conversation: bool = True     # read tool calls, cost and the agent's transcript after the call
+    conversation_wait_s: float = 30.0   # how long to wait for the conversation record to be ready
+
+    @model_validator(mode="after")
+    def _check(self) -> "ElevenLabsAgentConfig":
+        _check_env_name(self.api_key_env)
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", self.agent_id):
+            raise ValueError("'agent_id' must be the ElevenLabs agent id (agent_...)")
+        return self
+
+    @property
+    def ws_url(self) -> str:
+        base = self.api_url.rstrip("/").replace("https://", "wss://", 1).replace("http://", "ws://", 1)
+        return f"{base}/v1/convai/conversation?agent_id={self.agent_id}"
+
+
 class AgentConfig(_Strict):
     id: str
     name: str = ""
-    adapter: Literal["websocket", "http-turn"] = "websocket"
-    url: str = ""  # websocket: ws:// url. http-turn: defaults to http.base_url
+    adapter: Literal["websocket", "http-turn", "elevenlabs"] = "websocket"
+    url: str = ""  # websocket: ws:// url. http-turn: defaults to http.base_url. elevenlabs: set from agent_id
     language: Literal["en", "es"] = "en"
     http: HttpConfig | None = None  # required for adapter: http-turn
+    elevenlabs: ElevenLabsAgentConfig | None = None  # required for adapter: elevenlabs
 
     @model_validator(mode="after")
     def _check(self) -> "AgentConfig":
+        if self.adapter == "elevenlabs":
+            if self.elevenlabs is None:
+                raise ValueError("adapter 'elevenlabs' needs an 'elevenlabs' section with 'agent_id'")
+            if not self.url:
+                self.url = self.elevenlabs.ws_url
         if self.adapter == "websocket" and not self.url:
             raise ValueError("adapter 'websocket' needs 'url'")
         if self.adapter == "http-turn":
